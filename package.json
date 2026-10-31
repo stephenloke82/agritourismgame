@@ -1,0 +1,12 @@
+{
+  "name": "open-the-gate",
+  "version": "1.0.0",
+  "description": "A turn-based browser game about adding agritourism to a working farm.",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "simulate": "node tools/simulate.js 30",
+    "browser-check": "node tools/browser-check.js"
+  },
+  "license": "UNLICENSED"
+}
