@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Open the Gate</title>
+  <meta name="description" content="A turn-based farm game about adding agritourism to a working farm without burning out the family.">
+  <meta name="theme-color" content="#1b36a8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to the game</a>
+
+  <header class="masthead" id="masthead">
+    <div class="masthead-inner">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">Open the Gate</span></div>
+      <p class="date" id="date-label"></p>
+      <ul class="meters" id="meters" aria-label="Farm meters">
+        <li class="meter meter-cash"><span class="meter-label">Cash</span><span class="meter-value" id="m-cash">$0</span></li>
+        <li class="meter meter-stars"><span class="meter-label">Stars</span><span class="meter-value" id="m-stars" aria-describedby="m-stars-text"></span><span class="sr-only" id="m-stars-text"></span></li>
+        <li class="meter meter-bar"><span class="meter-label">Family Stamina</span>
+          <span class="bar" aria-hidden="true"><span class="bar-fill" id="m-stamina-bar"></span></span><span class="meter-value small" id="m-stamina">0</span></li>
+        <li class="meter meter-bar"><span class="meter-label">Safety</span>
+          <span class="bar" aria-hidden="true"><span class="bar-fill" id="m-safety-bar"></span></span><span class="meter-value small" id="m-safety">0</span></li>
+      </ul>
+      <div class="mast-actions">
+        <button class="btn-icon btn-fs" id="btn-fullscreen" type="button" aria-pressed="false" hidden>Full screen</button>
+        <button class="btn-icon" id="btn-help" type="button" aria-haspopup="dialog">How to play</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <!-- Title -->
+    <section class="screen" id="screen-title" aria-labelledby="title-heading">
+      <div class="crate-label">
+        <div class="sunburst" aria-hidden="true"></div>
+        <p class="crate-kicker">A farm game, one month at a time</p>
+        <h1 id="title-heading" class="crate-title">Open<br>the Gate</h1>
+        <p class="crate-sub">Add visitors to your working farm. Earn a Blue Ribbon with <strong>$60,000 a year</strong> from them, ideally by year 3, without burning out the family. Play as long as you like.</p>
+        <div class="crate-actions">
+          <button class="btn btn-main" id="btn-continue" type="button" hidden>Continue your farm</button>
+          <button class="btn btn-gold" id="btn-new" type="button">Start a new farm</button>
+          <button class="btn btn-plain" id="btn-howto" type="button">How to play</button>
+          <button class="btn btn-plain" id="btn-fs-title" type="button" hidden>Play full screen</button>
+        </div>
+        <p class="note" id="storage-note" hidden>This browser won't let the game save. You can still play; progress is lost if you close the page.</p>
+      </div>
+      <p class="disclaimer">All numbers in this game are game numbers, not real benchmarks or financial advice. Rules differ by place — always check your own local and state rules.</p>
+    </section>
+
+    <!-- Setup -->
+    <section class="screen" id="screen-setup" aria-labelledby="setup-heading" hidden>
+      <form class="panel setup" id="setup-form" novalidate>
+        <h2 id="setup-heading" class="panel-title">Your farm</h2>
+        <div class="field">
+          <label for="farm-name">Farm name <span class="hint">(painted on the barn)</span></label>
+          <input id="farm-name" name="farmName" type="text" maxlength="28" autocomplete="off" required value="Sunny Acres">
+        </div>
+        <fieldset class="choice-group">
+          <legend>What do you farm?</legend>
+          <div class="choice-grid" id="farm-type-choices"></div>
+        </fieldset>
+        <fieldset class="choice-group">
+          <legend>Where is the farm?</legend>
+          <div class="choice-grid" id="location-choices"></div>
+        </fieldset>
+        <div class="setup-actions">
+          <button class="btn btn-plain" type="button" id="btn-setup-back">Back</button>
+          <button class="btn btn-main" type="submit">Start farming</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Game -->
+    <section class="screen" id="screen-game" aria-label="Farm" hidden>
+      <div class="game-grid">
+        <div class="stage">
+          <div class="scene-wrap">
+            <canvas id="scene" width="960" height="600" role="img" aria-label="Your farm"></canvas>
+            <div class="anim-caption" id="anim-caption" hidden aria-hidden="true"></div>
+            <button class="btn btn-small skip-anim" id="btn-skip-anim" type="button" hidden>Skip</button>
+          </div>
+          <aside class="dot" aria-labelledby="dot-name">
+            <div class="dot-face" aria-hidden="true">
+              <svg viewBox="0 0 64 64" width="56" height="56"><circle cx="32" cy="34" r="22" fill="#f1c8a0"/><path d="M8 28c2-16 46-16 48 0-6-4-18-6-24-6S14 24 8 28z" fill="#e2452f"/><ellipse cx="32" cy="20" rx="30" ry="6" fill="#f2b632"/><circle cx="24" cy="35" r="3" fill="#1b1f3a"/><circle cx="40" cy="35" r="3" fill="#1b1f3a"/><path d="M24 45q8 6 16 0" stroke="#1b1f3a" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="18" cy="42" r="3" fill="#f29a8a" opacity=".6"/><circle cx="46" cy="42" r="3" fill="#f29a8a" opacity=".6"/></svg>
+            </div>
+            <div class="dot-body">
+              <p class="dot-name" id="dot-name">Dot, your mentor</p>
+              <p class="dot-tip" id="dot-tip" aria-live="polite"></p>
+              <div class="dot-actions">
+                <button class="link-btn" id="btn-skip-tour" type="button" hidden>Skip the tour</button>
+                <button class="btn btn-small btn-plain" id="btn-report" type="button">Farm report and ribbons</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="side">
+          <!-- planning -->
+          <div id="view-plan">
+            <section class="panel" aria-labelledby="plots-heading">
+              <h2 class="panel-title" id="plots-heading">Your farm map</h2>
+              <p class="panel-sub" id="plots-sub">Tap a plot on the map or a button below to build.</p>
+              <ul class="plot-list" id="plot-list"></ul>
+            </section>
+
+            <section class="panel" aria-labelledby="month-heading">
+              <h2 class="panel-title" id="month-heading">This month</h2>
+              <fieldset class="choice-group" id="focus-group">
+                <legend>Monthly focus <span class="hint">(pick one)</span></legend>
+                <div class="choice-grid three" id="focus-choices"></div>
+              </fieldset>
+              <fieldset class="choice-group">
+                <legend>Prices</legend>
+                <div class="segmented" id="price-choices"></div>
+              </fieldset>
+              <div class="help-row" id="help-row">
+                <span class="help-label" id="help-label">Hired hands</span>
+                <div class="stepper" role="group" aria-labelledby="help-label">
+                  <button type="button" class="btn-step" id="help-minus" aria-label="Fewer hired hands">−</button>
+                  <output id="help-count" aria-live="polite">0</output>
+                  <button type="button" class="btn-step" id="help-plus" aria-label="More hired hands">+</button>
+                </div>
+                <p class="hint" id="help-hint"></p>
+              </div>
+            </section>
+
+            <section class="panel" aria-labelledby="forecast-heading">
+              <h2 class="panel-title" id="forecast-heading">Forecast</h2>
+              <div id="forecast"></div>
+            </section>
+
+            <section class="panel" aria-labelledby="gw-heading">
+              <h2 class="panel-title" id="gw-heading">Groundwork</h2>
+              <p class="panel-sub">The paperwork, parking and plumbing that keep visitors safe and coming back. <span id="gw-count"></span></p>
+              <div id="gw-list"></div>
+            </section>
+          </div>
+
+          <!-- results -->
+          <div id="view-results" hidden>
+            <section class="panel ledger" aria-labelledby="results-heading" id="results-panel" tabindex="-1">
+              <h2 class="panel-title" id="results-heading">Results</h2>
+              <div id="results"></div>
+            </section>
+          </div>
+
+          <!-- dilemma -->
+          <div id="view-card" hidden>
+            <section class="panel card" aria-labelledby="card-heading" id="card-panel" tabindex="-1">
+              <p class="card-kicker">A decision</p>
+              <h2 class="panel-title" id="card-heading"></h2>
+              <p class="card-text" id="card-text"></p>
+              <div class="card-choices" id="card-choices"></div>
+              <div class="card-outcome" id="card-outcome" hidden aria-live="polite"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- End -->
+    <section class="screen" id="screen-end" aria-labelledby="end-heading" hidden>
+      <div class="end" id="end"></div>
+    </section>
+  </main>
+
+  <div class="actionbar" id="actionbar" hidden>
+    <div class="actionbar-inner">
+      <p class="action-hint" id="action-hint"></p>
+      <button class="btn btn-main btn-gate" id="btn-main" type="button">Open the gate</button>
+    </div>
+  </div>
+
+  <dialog id="build-dialog" aria-labelledby="build-title">
+    <form method="dialog" class="dialog-head">
+      <h2 id="build-title"></h2>
+      <button class="btn-close" value="close" aria-label="Close">×</button>
+    </form>
+    <div class="dialog-body" id="build-body"></div>
+  </dialog>
+
+  <dialog id="help-dialog" aria-labelledby="help-title">
+    <form method="dialog" class="dialog-head">
+      <h2 id="help-title">How to play</h2>
+      <button class="btn-close" value="close" aria-label="Close">×</button>
+    </form>
+    <div class="dialog-body prose">
+      <p><strong>Goal:</strong> earn <strong>$60,000 in visitor profit in a farm year</strong> (visitor income minus the costs of running attractions, groundwork, land and hired help, not counting build costs or crop sales), ideally by year 3, without the family burning out.</p>
+      <p>The game has no end. At the end of every farm year the <strong>county fair</strong> awards a ribbon: Blue for $60,000, Red for $40,000, White for $20,000, otherwise Honorable Mention. Each burnout that year costs a ribbon. Open <strong>Farm report and ribbons</strong> any time to see how you are doing.</p>
+      <h3>Each month</h3>
+      <ol>
+        <li><strong>Build</strong> attractions on empty plots, <strong>buy more land</strong> when you need room, and do <strong>groundwork</strong> (insurance, parking, permits, shade, signs…).</li>
+        <li>Choose <strong>one focus</strong>: Promote, Fix and Tidy, or Rest the Family.</li>
+        <li>Set your <strong>prices</strong> and, once payroll is set up, how many <strong>hired hands</strong> you need.</li>
+        <li>Check the <strong>forecast</strong>, then press <strong>Open the gate</strong>.</li>
+        <li>Read the results, then answer the month's <strong>decision</strong> if there is one.</li>
+      </ol>
+      <h3>The four meters</h3>
+      <ul>
+        <li><strong>Cash</strong> — the bank lets you go $40,000 below zero. Stay past that two months running and the game ends.</li>
+        <li><strong>Stars</strong> — your reviews. More stars, more visitors.</li>
+        <li><strong>Family Stamina</strong> — drops when the family works more hours than it has. At zero, the farm closes for a month.</li>
+        <li><strong>Safety</strong> — low safety means more injuries. Insurance limits what an injury costs.</li>
+      </ul>
+      <h3>Good to know</h3>
+      <ul>
+        <li>Fall is busy for visitors <em>and</em> for harvest. Plan help early.</li>
+        <li>Pumpkins and corn mazes must be planted months ahead.</li>
+        <li>Parking caps how many visitors you can take in a month.</li>
+        <li>Rain hurts outdoor attractions. Online booking halves the loss.</li>
+      </ul>
+      <p class="disclaimer">All figures are game numbers, not real benchmarks or financial advice. Legal topics are general — check your own local and state rules.</p>
+    </div>
+  </dialog>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+    <form method="dialog">
+      <div class="dialog-head"><h2 id="confirm-title">Are you sure?</h2></div>
+      <div class="dialog-body"><p id="confirm-text"></p>
+        <div class="dialog-actions">
+          <button class="btn btn-plain" value="cancel">Cancel</button>
+          <button class="btn btn-main" value="ok" id="confirm-ok">Yes</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="sr-only" aria-live="polite" id="announcer"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/scene.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
