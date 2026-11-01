@@ -29,8 +29,18 @@ Progress saves automatically in your browser (`localStorage`). If the browser bl
 
 ## Play it
 
-- **On your computer:** download or clone this repository and open `index.html` in a browser. No server is needed.
+- **Easiest:** download **`open-the-gate.html`**. It is the whole game in one file, so you can double-click it, email it, or put it on a website.
+- **From the full folder:** unzip the whole repository first, then open `index.html`. If you open it from inside the ZIP, the page loads without its styles and scripts.
 - **Online:** host it with GitHub Pages (below) and share the link.
+
+### Put it on your own website
+
+- **Wix:** add an **Embed HTML** element (Add → Embed Code → Embed HTML). Choose **Website address** and paste the game's web address (for example, your GitHub Pages link). Or choose **Code** and paste the full contents of `open-the-gate.html`. Then stretch the box to at least 900 px tall, or make a page just for the game.
+- **WordPress, Squarespace or any host that accepts files:** upload `open-the-gate.html` and link to it. To embed it in a page, use `<iframe src="open-the-gate.html" style="width:100%;height:900px;border:0" title="Open the Gate game"></iframe>`.
+
+Inside an embed, some browsers block saving, so progress may not carry over between visits. The game still plays.
+
+`open-the-gate.html` is generated from the source files. After any change, rebuild it with `node tools/build-single.js`.
 
 ### Turn on GitHub Pages
 
@@ -53,6 +63,8 @@ js/ui.js            connects the engine, the scene and the page
 tests/              engine tests (Node's built-in test runner)
 tools/simulate.js   balance simulator: many seeds × strategies × farm types × locations
 tools/browser-check.js  optional full playthrough in a real browser (needs Playwright)
+tools/build-single.js   builds open-the-gate.html (the whole game in one file)
+open-the-gate.html      generated single-file version of the game
 ```
 
 You need Node 18 or newer. There is nothing to install.
