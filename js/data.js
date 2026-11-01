@@ -17,7 +17,13 @@
 
   var RULES = {
     startMonth: 2,            // the game opens in March of year 1
-    turns: 36,
+    goalYear: 3,              // the classic target: hit the goal by year 3
+    basePlots: 10,            // plots you start with
+    maxPlots: 18,             // with every extra field bought
+    plotBaseCost: 5000,       // first extra plot; each one after costs more
+    plotStepCost: 1500,
+    plotUpkeep: 50,           // land tax and fencing per extra plot per month
+    snackSpend: 1.0,          // snack bar spend per visitor
     startCash: 30000,
     creditLine: 40000,        // the bank lets you go this far below zero
     interestRate: 0.01,       // per month on any overdraft
@@ -74,21 +80,21 @@
       blurb: 'Vegetables, berries and flowers. Long, steady summer hours.',
       hours: [90, 120, 200, 260, 300, 320, 320, 320, 290, 230, 130, 90],
       crop: [0, 0, 500, 1500, 3000, 5000, 6500, 7000, 6000, 4000, 1500, 0],
-      bonus: { stand: 1.35, upick: 1.3, dinners: 1.3, workshops: 1.25, maze: 0.8, hayride: 0.9 }
+      bonus: { stand: 1.35, upick: 1.3, dinners: 1.3, workshops: 1.25, sunflowers: 1.2, maze: 0.8, hayride: 0.9 }
     },
     livestock: {
       name: 'Livestock',
       blurb: 'Cattle, sheep and goats. Chores every single day, all year.',
       hours: [250, 260, 320, 300, 260, 240, 240, 240, 250, 250, 250, 250],
       crop: [2900, 2900, 2900, 2900, 2900, 2900, 2900, 2900, 2900, 2900, 2900, 2900],
-      bonus: { petting: 1.5, school: 1.35, cabin: 1.2, workshops: 1.1, upick: 0.6, pumpkin: 0.85, maze: 0.85 }
+      bonus: { petting: 1.5, school: 1.35, cabin: 1.2, workshops: 1.1, pond: 1.15, upick: 0.6, pumpkin: 0.85, maze: 0.85 }
     },
     grain: {
       name: 'Grain',
       blurb: 'Corn, wheat and soybeans. Quiet months, then planting and harvest crunches.',
       hours: [50, 50, 110, 300, 320, 130, 220, 150, 320, 360, 140, 50],
       crop: [0, 0, 0, 0, 0, 0, 9000, 4000, 0, 15000, 8000, 0],
-      bonus: { maze: 1.5, pumpkin: 1.3, hayride: 1.3, upick: 0.6, petting: 0.85, dinners: 0.9 }
+      bonus: { maze: 1.5, pumpkin: 1.3, hayride: 1.3, sunflowers: 1.3, upick: 0.6, petting: 0.85, dinners: 0.9 }
     }
   };
 
@@ -195,59 +201,120 @@
       season: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.4, 1],
       requires: [],
       blurb: 'Choose-and-cut trees in winter. Your own trees take years to grow, so you buy many in at first.'
+    },
+    sunflowers: {
+      name: 'Sunflower Field', icon: 'sunflowers', unit: 'visitors',
+      cost: 2500, upkeep: 60, draw: 380, price: 8, cogs: 0.15,
+      hours: 30, hoursPer: 0.04, risk: 1, outdoor: 1, establish: 3,
+      season: [0, 0, 0, 0, 0, 0, 0.6, 1, 0.7, 0, 0, 0],
+      requires: [],
+      blurb: 'Rows of sunflowers for photos and cut stems. Cheap to plant and popular with photographers, but the bloom is over in a few weeks.'
+    },
+    playground: {
+      name: 'Barnyard Play Area', icon: 'playground', unit: 'kids',
+      cost: 9000, upkeep: 120, draw: 300, price: 7, cogs: 0.02,
+      hours: 40, hoursPer: 0.03, risk: 5, outdoor: 0.9, establish: 1,
+      season: [0, 0, 0, 0.6, 0.9, 1, 1, 1, 1, 1, 0.4, 0],
+      requires: ['insurance'],
+      blurb: 'Hay-bale climbs, a corn pit and tube slides. Families stay longer, so everything else earns a little more.'
+    },
+    pond: {
+      name: 'Fishing Pond', icon: 'pond', unit: 'anglers',
+      cost: 7000, upkeep: 150, draw: 180, price: 15, cogs: 0.15,
+      hours: 30, hoursPer: 0.05, risk: 4, outdoor: 1, establish: 2,
+      season: [0, 0, 0, 0.6, 1, 1, 0.9, 0.9, 1, 0.8, 0, 0],
+      requires: ['insurance'],
+      blurb: 'Catch-and-release fishing in a stocked pond. Calm and steady, but water always needs rules and rescue gear.'
     }
   };
 
   var GROUNDWORK = {
     insurance: {
-      name: 'Agritourism insurance', cost: 0, upkeep: 320,
+      group: 'safety', name: 'Agritourism insurance', cost: 0, upkeep: 320,
       blurb: 'Liability cover for visitors. Limits what an injury costs you to a $1,000 deductible.'
     },
     waivers: {
-      name: 'Waivers and warning signs', cost: 700, upkeep: 0,
+      group: 'safety', name: 'Waivers and warning signs', cost: 700, upkeep: 0,
       blurb: 'Posted signs and signed waivers. Raises Safety and trims the cost of an incident. Check what your state requires.'
     },
     handwash: {
-      name: 'Handwash stations', cost: 1500, upkeep: 40,
+      group: 'safety', name: 'Handwash stations', cost: 1500, upkeep: 40,
       blurb: 'Soap and running water at animal areas and food. Needed for school tours.'
     },
     parking1: {
-      name: 'Gravel parking lot', cost: 4000, upkeep: 50, parking: 1800,
+      group: 'access', name: 'Gravel parking lot', cost: 4000, upkeep: 50, parking: 1800,
       blurb: 'Off-road parking for about 1,800 visitors a month (your farmyard holds about 450).'
     },
     parking2: {
-      name: 'Overflow field and attendants', cost: 3000, upkeep: 250, parking: 4500, requires: ['parking1'],
+      group: 'access', name: 'Overflow field and attendants', cost: 3000, upkeep: 250, parking: 4500, requires: ['parking1'],
       blurb: 'A mowed overflow field with weekend attendants. Room for about 4,500 visitors a month.'
     },
     restrooms: {
-      name: 'Restrooms', cost: 5500, upkeep: 120,
+      group: 'comfort', name: 'Restrooms', cost: 5500, upkeep: 120,
       blurb: 'A proper restroom block. Visitors notice. Needed for weddings and dinners.'
     },
     zoning: {
-      name: 'Zoning permit', cost: 1500, upkeep: 0, delay: 3,
+      group: 'business', name: 'Zoning permit', cost: 1500, upkeep: 0, delay: 3,
       blurb: 'Permission for events and lodging. Takes about 3 months to approve. Needed for the cabin, weddings, dinners and kitchen.'
     },
     kitchen: {
-      name: 'Commercial kitchen', cost: 16000, upkeep: 150, requires: ['zoning'],
+      group: 'business', name: 'Commercial kitchen', cost: 16000, upkeep: 150, requires: ['zoning'],
       blurb: 'Licensed kitchen for pies, jams and dinners. The stand earns more per shopper. Needed for farm dinners.'
     },
     website: {
-      name: 'Website and listings', cost: 1200, upkeep: 40,
+      group: 'marketing', name: 'Website and listings', cost: 1200, upkeep: 40,
       blurb: 'A simple site plus map and tourism listings. More visitors find you, and the email list grows faster.'
     },
     booking: {
-      name: 'Online booking', cost: 900, upkeep: 60, requires: ['website'],
+      group: 'marketing', name: 'Online booking', cost: 900, upkeep: 60, requires: ['website'],
       blurb: 'Timed tickets and rain checks. Halves rain losses and helps booked events.'
     },
     payroll: {
-      name: 'Seasonal help (payroll set up)', cost: 400, upkeep: 0,
+      group: 'business', name: 'Seasonal help (payroll set up)', cost: 400, upkeep: 0,
       blurb: 'Paperwork, workers\' comp and training so you can hire hands by the month.'
     },
     email: {
-      name: 'Email list', cost: 200, upkeep: 15,
+      group: 'marketing', name: 'Email list', cost: 200, upkeep: 15,
       blurb: 'A sign-up sheet and newsletter. Grows from your visitors and brings repeat visits.'
+    },
+    fencing: {
+      group: 'safety', name: 'Perimeter fencing and gates', cost: 2500, upkeep: 0,
+      blurb: 'Fences and lockable gates between visitors, machinery and livestock. Raises Safety.'
+    },
+    firstaid: {
+      group: 'safety', name: 'First-aid station and training', cost: 600, upkeep: 20,
+      blurb: 'A stocked station, trained family members and incident report forms. Raises Safety and trims injury costs.'
+    },
+    shade: {
+      group: 'comfort', name: 'Shade, seating and water', cost: 2000, upkeep: 30,
+      blurb: 'Tents, picnic tables and free water. Visitors stay happier, especially in summer heat.'
+    },
+    accessible: {
+      group: 'comfort', name: 'Accessible paths and ramps', cost: 3500, upkeep: 0,
+      blurb: 'Firm paths, ramps and accessible parking. More families and older visitors can come, and reviews improve.'
+    },
+    snackbar: {
+      group: 'comfort', name: 'Snack bar and food permit', cost: 4000, upkeep: 100, requires: ['handwash'],
+      blurb: 'Cider, donuts and drinks. Every visitor spends a little more, but it adds work. Check your food permit rules.'
+    },
+    signage: {
+      group: 'access', name: 'Road signs and directions', cost: 900, upkeep: 10,
+      blurb: 'Signs on the main road and at the turn. More passing drivers find you. Check your county\'s sign rules.'
+    },
+    cardpay: {
+      group: 'business', name: 'Card reader and point of sale', cost: 500, upkeep: 45,
+      blurb: 'Take cards and phones, not just cash. Visitors spend a bit more on every attraction.'
+    },
+    cooler: {
+      group: 'business', name: 'Walk-in cooler', cost: 7000, upkeep: 80,
+      blurb: 'Keeps produce fresh, so less goes to waste. Lowers the cost of goods for produce attractions.'
     }
   };
+
+  var GW_GROUPS = [
+    ['safety', 'Safety and rules'], ['comfort', 'Visitor comfort'], ['access', 'Getting here'],
+    ['marketing', 'Getting found'], ['business', 'Running the business']
+  ];
 
   // Chance that any one weekend in this calendar month is rained out.
   var RAIN = [0.3, 0.3, 0.35, 0.4, 0.35, 0.25, 0.2, 0.2, 0.25, 0.3, 0.35, 0.3];
@@ -261,6 +328,43 @@
    * choices[].wise: used only by the balance simulator's careful player.
    */
   var CARDS = [
+    {
+      id: 'playground_surface', title: 'Hard ground under the slide',
+      when: function (s, h) { return h.isOpen('playground') && !h.flag('playSurface'); }, weight: 4,
+      text: 'A parent points out that the ground under the tube slide is packed dirt.',
+      choices: [
+        { label: 'Put down proper safety surfacing and start weekly checks ($1,200)', wise: true,
+          fx: { cash: -1200, safety: 10, flag: { playSurface: true } }, result: 'Deep wood chips under every climb, and a checklist on the gate.' },
+        { label: 'Rake in some loose straw', fx: { cash: -50, safety: 2 }, result: 'Softer for a week or two.' },
+        { label: 'Kids fall; it happens', fx: { safety: -8 }, result: 'Nothing changes.' }
+      ],
+      lesson: 'Play equipment needs impact-absorbing surfacing and regular inspection. Look up public playground safety guidelines before you open.'
+    },
+    {
+      id: 'pond_safety', title: 'Kids at the water\'s edge',
+      when: function (s, h) { return h.isOpen('pond') && !h.flag('pondRules'); }, weight: 4,
+      text: 'You see three young children running along the pond bank with no adult nearby.',
+      choices: [
+        { label: 'Life ring station, posted rules, and children only with an adult ($500)', wise: true,
+          fx: { cash: -500, safety: 10, flag: { pondRules: true } }, result: 'Rules at the gate and a rescue ring on a post.' },
+        { label: 'Fence the whole pond with a single gate ($2,500)',
+          fx: { cash: -2500, safety: 14, flag: { pondRules: true } }, result: 'Safer, though the view is not quite the same.' },
+        { label: 'It is only waist deep', fx: { safety: -10 }, result: 'You hope for the best.' }
+      ],
+      lesson: 'Water is a drowning risk even when shallow. Post rules, keep rescue equipment ready, and require adult supervision.'
+    },
+    {
+      id: 'land_offer', title: 'The neighbor is selling',
+      when: function (s, h) { return h.freePlots() === 0 && h.morePlots() && h.turn >= 10 && !h.flag('landOffer'); }, weight: 3,
+      text: 'Your neighbor is retiring and offers you the next field over at a friendly price, if you decide this month.',
+      choices: [
+        { label: 'Buy it at the friendly price', need: function (s, h) { return h.canSpend(h.plotCost() * 0.7); },
+          fx: function (s, h) { return { cash: -Math.round(h.plotCost() * 0.7), plot: 1, flag: { landOffer: true } }; },
+          result: 'A handshake and a new field to plan.' },
+        { label: 'Not now: we are stretched enough', wise: true, fx: { flag: { landOffer: true } }, result: 'You thank them and wish them well.' }
+      ],
+      lesson: 'More land means more choices, but also more upkeep and more work. Grow when your hours and cash can carry it.'
+    },
     {
       id: 'insurer', title: 'The insurance renewal',
       when: function (s, h) { return h.anyBuilt() && !h.gw('insurance'); }, weight: 3,
@@ -712,6 +816,6 @@
   return {
     MONTHS: MONTHS, MONTHS_SHORT: MONTHS_SHORT, RULES: RULES, FOCUS: FOCUS, PRICE: PRICE,
     LOCATIONS: LOCATIONS, FARM_TYPES: FARM_TYPES, ATTRACTIONS: ATTRACTIONS,
-    GROUNDWORK: GROUNDWORK, RAIN: RAIN, CARDS: CARDS, PLOT_COUNT: 10
+    GROUNDWORK: GROUNDWORK, GW_GROUPS: GW_GROUPS, RAIN: RAIN, CARDS: CARDS, PLOT_COUNT: 18
   };
 });

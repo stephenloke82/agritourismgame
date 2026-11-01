@@ -9,13 +9,21 @@
   var DISPLAY_FONT = '"Alfa Slab One", "Rockwell", "Roboto Slab", Georgia, serif';
 
   // Ten plots in ground coordinates: [u0, u1, v0, v1]  (u: -1 left .. 1 right, v: 0 back .. 1 front)
-  var PLOTS = [
-    [-0.47, -0.11, 0.70, 0.97], [0.11, 0.47, 0.70, 0.97],
-    [-0.97, -0.57, 0.37, 0.64], [-0.49, -0.11, 0.37, 0.64], [0.11, 0.49, 0.37, 0.64], [0.57, 0.97, 0.37, 0.64],
-    [-0.97, -0.57, 0.04, 0.31], [-0.49, -0.11, 0.04, 0.31], [0.11, 0.49, 0.04, 0.31], [0.57, 0.97, 0.04, 0.31]
-  ];
-  var PLOT_NAMES = ['By the gate, left', 'By the gate, right', 'Middle row, far left', 'Middle row, left',
-    'Middle row, right', 'Middle row, far right', 'Back row, far left', 'Back row, left', 'Back row, right', 'Back row, far right'];
+  // Columns across the field, then rows from the gate back toward the barn.
+  var COLS = [[-0.97, -0.57], [-0.49, -0.11], [0.11, 0.49], [0.57, 0.97]];
+  var ROWS = { middle: [0.56, 0.71], back: [0.37, 0.52], far: [0.19, 0.33], top: [0.02, 0.15] };
+  // Plots 0-9 are the starting farm; 10-17 are fields you can buy.
+  var PLOTS = [[-0.47, -0.11, 0.75, 0.97], [0.11, 0.47, 0.75, 0.97]];
+  ['middle', 'back', 'far', 'top'].forEach(function (row) {
+    COLS.forEach(function (c) { PLOTS.push([c[0], c[1], ROWS[row][0], ROWS[row][1]]); });
+  });
+  var SIDES = ['far left', 'left', 'right', 'far right'];
+  var PLOT_NAMES = ['By the gate, left', 'By the gate, right'];
+  ['Middle row', 'Back row', 'Far field', 'Top field'].forEach(function (row) {
+    SIDES.forEach(function (side) { PLOT_NAMES.push(row + ', ' + side); });
+  });
+  // draw from the back of the field to the front so nearer things overlap farther ones
+  var DRAW_ORDER = [14, 15, 16, 17, 10, 11, 12, 13, 6, 7, 8, 9, 2, 3, 4, 5, 0, 1];
 
   function proj(u, v) {
     var half = 250 + 232 * v;
@@ -187,6 +195,19 @@
     }
   }
 
+  function drawForSale(ctx, q, pal, i) {
+    poly(ctx, q); ctx.fillStyle = pal.grass2; ctx.fill();
+    // wild tufts
+    ctx.fillStyle = pal.hill;
+    for (var t = 0; t < 10; t++) {
+      var a = jit(i, t + 20), b = jit(t + 20, i);
+      var lx = q[0].x + (q[3].x - q[0].x) * (0.15 + 0.7 * a), rx = q[1].x + (q[2].x - q[1].x) * (0.15 + 0.7 * a);
+      var y = q[0].y + (q[3].y - q[0].y) * (0.15 + 0.7 * a), x = lx + (rx - lx) * (0.1 + 0.8 * b);
+      ctx.beginPath(); ctx.arc(x, y, 3, Math.PI, 0); ctx.fill();
+    }
+    ctx.save(); poly(ctx, q); ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(255,246,227,0.8)'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore();
+  }
+
   function signPost(ctx, x, y, k, text, bg) {
     ctx.font = Math.round(11 * k) + 'px ' + DISPLAY_FONT;
     var w = ctx.measureText(text).width + 12 * k, h = 16 * k;
@@ -331,6 +352,52 @@
       ctx.fillStyle = '#1b1f3a'; ctx.font = Math.round(8 * k) + 'px ' + DISPLAY_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('CLASS', x + w + 11 * k, y + 8.5 * k);
     },
+    sunflowers: function (ctx, c, k, q, sea) {
+      poly(ctx, q); ctx.fillStyle = sea === 'winter' ? '#cdd6cf' : '#5f9e3a'; ctx.fill();
+      for (var r = 0; r < 3; r++) {
+        for (var b = 0; b < 7; b++) {
+          var t = (r + 0.7) / 3.3, u = (b + 0.5) / 7;
+          var lx = q[0].x + (q[3].x - q[0].x) * t, rx = q[1].x + (q[2].x - q[1].x) * t;
+          var y = q[0].y + (q[3].y - q[0].y) * t, x = lx + (rx - lx) * u;
+          rect(ctx, x - 1, y - 14 * k, 2, 14 * k, '#3f7a2a');
+          if (sea === 'summer' || sea === 'fall') {
+            circle(ctx, x, y - 15 * k, 5 * k, '#f2b632');
+            circle(ctx, x, y - 15 * k, 2.2 * k, '#6b4526');
+          } else if (sea === 'spring') {
+            circle(ctx, x - 2 * k, y - 10 * k, 2 * k, '#6fbf4a'); circle(ctx, x + 2 * k, y - 8 * k, 2 * k, '#6fbf4a');
+          }
+        }
+      }
+    },
+    playground: function (ctx, c, k, q) {
+      poly(ctx, q); ctx.fillStyle = '#c9a46a'; ctx.fill();
+      // hay bale pyramid
+      [[-40, 4], [-24, 4], [-8, 4], [-32, -8], [-16, -8], [-24, -20]].forEach(function (h) {
+        rect(ctx, c.x + h[0] * k, c.y + h[1] * k, 15 * k, 11 * k, '#f2c94c');
+        ctx.strokeStyle = '#b8902a'; ctx.lineWidth = 1; ctx.strokeRect(c.x + h[0] * k, c.y + h[1] * k, 15 * k, 11 * k);
+      });
+      // tube slide
+      ctx.strokeStyle = '#e2452f'; ctx.lineWidth = 7 * k; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(c.x + 14 * k, c.y - 22 * k); ctx.quadraticCurveTo(c.x + 44 * k, c.y - 16 * k, c.x + 40 * k, c.y + 12 * k); ctx.stroke();
+      ctx.lineCap = 'butt';
+      rect(ctx, c.x + 8 * k, c.y - 26 * k, 12 * k, 4 * k, '#1b36a8');
+      rect(ctx, c.x + 9 * k, c.y - 22 * k, 3 * k, 34 * k, '#1b36a8'); rect(ctx, c.x + 16 * k, c.y - 22 * k, 3 * k, 34 * k, '#1b36a8');
+    },
+    pond: function (ctx, c, k, q, sea) {
+      poly(ctx, q); ctx.fillStyle = '#7fb85a'; ctx.fill();
+      ctx.beginPath(); ctx.ellipse(c.x, c.y + 2 * k, 52 * k, 17 * k, 0, 0, Math.PI * 2);
+      ctx.fillStyle = sea === 'winter' ? '#dfe9f2' : '#3d7fd6'; ctx.fill();
+      ctx.strokeStyle = '#c8955a'; ctx.lineWidth = 2; ctx.stroke();
+      if (sea !== 'winter') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(c.x - 22 * k, c.y); ctx.lineTo(c.x - 8 * k, c.y); ctx.moveTo(c.x + 10 * k, c.y + 7 * k); ctx.lineTo(c.x + 26 * k, c.y + 7 * k); ctx.stroke();
+      }
+      // little dock and an angler
+      rect(ctx, c.x + 30 * k, c.y - 6 * k, 20 * k, 5 * k, '#8a5a2b');
+      person(ctx, c.x + 42 * k, c.y - 6 * k, k, '#e2452f');
+      ctx.strokeStyle = '#1b1f3a'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(c.x + 44 * k, c.y - 20 * k); ctx.lineTo(c.x + 26 * k, c.y - 30 * k); ctx.lineTo(c.x + 22 * k, c.y + 2 * k); ctx.stroke();
+    },
     trees: function (ctx, c, k, q, sea) {
       for (var r = 0; r < 3; r++) {
         for (var b = 0; b < 5; b++) {
@@ -384,6 +451,49 @@
       rect(ctx, mb.x - 1.5, mb.y - 14, 3, 16, '#6b4526'); rect(ctx, mb.x - 9, mb.y - 24, 18, 11, '#e2452f');
       rect(ctx, mb.x + 7, mb.y - 30, 2, 8, '#f2b632');
     }
+    if (O.owned(s, 'fencing')) {
+      ctx.strokeStyle = '#fff6e3'; ctx.lineWidth = 2;
+      [-1.0, 1.0].forEach(function (u) {
+        var a = proj(u, 0.0), b = proj(u, 0.72);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.moveTo(a.x, a.y - 6); ctx.lineTo(b.x, b.y - 8); ctx.stroke();
+        for (var f = 0; f <= 8; f++) { var pp = proj(u, f * 0.09); rect(ctx, pp.x - 1.5, pp.y - 12 * pp.k, 3, 12 * pp.k, '#fff6e3'); }
+      });
+    }
+    if (O.owned(s, 'accessible')) {
+      var pa = [proj(-0.105, 0.0), proj(-0.08, 0.0), proj(-0.085, 1.0), proj(-0.115, 1.0)];
+      poly(ctx, pa); ctx.fillStyle = '#d9d4c7'; ctx.fill();
+    }
+    if (O.owned(s, 'firstaid')) {
+      var fa = proj(-0.76, 0.77);
+      tri(ctx, fa.x, fa.y, 34, 22, '#fff6e3');
+      rect(ctx, fa.x - 3, fa.y - 16, 6, 12, '#e2452f'); rect(ctx, fa.x - 7, fa.y - 12, 14, 4, '#e2452f');
+    }
+    if (O.owned(s, 'snackbar')) {
+      var sk = proj(0.63, 0.86);
+      rect(ctx, sk.x - 18, sk.y - 24, 36, 24, '#fff6e3');
+      for (var st = 0; st < 4; st++) rect(ctx, sk.x - 20 + st * 10, sk.y - 32, 10, 8, st % 2 ? '#fff6e3' : '#3f8f3a');
+      rect(ctx, sk.x - 14, sk.y - 18, 28, 8, '#c8955a');
+    }
+    if (O.owned(s, 'shade')) {
+      [[0.79, 0.86], [0.93, 0.87]].forEach(function (u) {
+        var sp2 = proj(u[0], u[1]);
+        rect(ctx, sp2.x - 1, sp2.y - 22, 2, 22, '#6b4526');
+        ctx.beginPath(); ctx.moveTo(sp2.x - 16, sp2.y - 18); ctx.quadraticCurveTo(sp2.x, sp2.y - 34, sp2.x + 16, sp2.y - 18); ctx.closePath();
+        ctx.fillStyle = '#e2452f'; ctx.fill();
+        rect(ctx, sp2.x - 9, sp2.y - 6, 18, 4, '#8a5a2b');
+      });
+    }
+    if (O.owned(s, 'signage')) {
+      rect(ctx, 866, 500, 4, 34, '#6b4526'); rect(ctx, 930, 500, 4, 34, '#6b4526');
+      rect(ctx, 856, 488, 88, 26, '#1b36a8');
+      ctx.strokeStyle = '#f2b632'; ctx.lineWidth = 2; ctx.strokeRect(856, 488, 88, 26);
+      ctx.fillStyle = '#ffd25a'; ctx.font = '11px ' + DISPLAY_FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('FARM ← TURN', 900, 501);
+    }
+    if (O.owned(s, 'cooler')) {
+      rect(ctx, 300, 204, 46, 40, '#e7ecef'); rect(ctx, 296, 198, 54, 8, '#9aa3ad');
+      rect(ctx, 316, 220, 14, 24, '#cfd8de');
+    }
     if (O.owned(s, 'kitchen')) {
       rect(ctx, 610, 186, 64, 54, '#fff6e3'); tri(ctx, 642, 187, 74, 22, '#3f8f3a');
       rect(ctx, 654, 160, 9, 20, '#8a8576'); rect(ctx, 618, 200, 16, 14, '#cfe3f5'); rect(ctx, 650, 214, 14, 26, '#c8955a');
@@ -392,7 +502,7 @@
     if (O.owned(s, 'website')) { signPost(ctx, 560, 532, 0.7, 'BOOK ONLINE', '#3d63d6'); }
     // hired hands near the barn
     var hands = O.owned(s, 'payroll') ? s.plan.help : 0;
-    for (i = 0; i < hands; i++) person(ctx, 360 - i * 14, 246, 1, '#e2452f', '#1b36a8');
+    for (i = 0; i < hands; i++) person(ctx, 372 - i * 12, 248, 1, '#e2452f', '#1b36a8');
   }
 
   function person(ctx, x, y, k, shirt, pants) {
@@ -444,10 +554,15 @@
     // left outer front: a little garden for when nothing's built
     var openSet = {};
     if (s.lastResult && opts.useLast) s.lastResult.attractions.forEach(function (x) { if (x.visitors > 0) openSet[x.id] = 1; });
-    PLOTS.forEach(function (p, i) {
+    var owned = s.plotsOwned || 10;
+    DRAW_ORDER.forEach(function (i) {
+      var p = PLOTS[i];
       var q = quad(p), c = center(p);
       var plot = s.plots[i];
-      if (!plot) {
+      if (i >= owned) {
+        drawForSale(ctx, q, pal, i);
+        if (opts.showEmptySigns !== false && i === owned) signPost(ctx, c.x, c.y + 8 * c.k, c.k * 1.25, 'FOR SALE', '#ffd25a');
+      } else if (!plot) {
         drawEmptyPlot(ctx, q, pal, sea, i);
         if (opts.showEmptySigns !== false) signPost(ctx, c.x, c.y + 10 * c.k, c.k * 1.5, '+ ' + (i + 1), '#fff6e3');
       } else {

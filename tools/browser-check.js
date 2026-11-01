@@ -33,9 +33,13 @@ var BUILD_PLAN = {
   2: [['attr', 'Pumpkin Patch', 3], ['gw', 'Website and listings']],
   4: [['gw', 'Gravel parking lot'], ['gw', 'Email list']],
   6: [['attr', 'Hayrides', 4], ['gw', 'Restrooms']],
-  8: [['attr', 'Christmas Trees', 5], ['gw', 'Online booking']],
+  8: [['attr', 'Christmas Trees', 5], ['gw', 'Online booking'], ['gw', 'Card reader and point of sale']],
+  10: [['gw', 'First-aid station and training'], ['gw', 'Road signs and directions']],
+  12: [['attr', 'Sunflower Field', 8], ['gw', 'Shade, seating and water']],
   14: [['attr', 'Workshops', 6], ['gw', 'Overflow field and attendants']],
-  15: [['attr', 'U-Pick', 7]]
+  15: [['attr', 'U-Pick', 7]],
+  16: [['land'], ['attr', 'Barnyard Play Area', 9]],
+  20: [['land'], ['attr', 'Fishing Pond', 10]]
 };
 
 async function playthrough(browser, base, label, viewport) {
@@ -63,12 +67,21 @@ async function playthrough(browser, base, label, viewport) {
   await page.locator('#build-body .attr', { hasText: 'Farm Stand' }).locator('button').click();
   await page.click('label[for="c-focus-promote"]');
 
-  for (var m = 0; m < 36; m++) {
+  // three full years, plus one more month to show the game keeps going
+  for (var m = 0; m < 37; m++) {
     var phase = await page.evaluate(function () { return window.OTGUI.state().phase; });
     if (phase === 'ended') break;
     var steps = BUILD_PLAN[m] || [];
     for (var i = 0; i < steps.length; i++) {
       var st = steps[i];
+      if (st[0] === 'land') {
+        await page.click('#plot-list .buy-land');
+        await page.waitForSelector('#build-dialog[open]');
+        if (m === 16) await page.screenshot({ path: path.join(OUT, label + '-05b-buy-land.png') });
+        var lb = page.locator('#build-body .btn-leaf');
+        if (await lb.isEnabled()) await lb.click(); else await page.click('#build-dialog .btn-close');
+        continue;
+      }
       if (st[0] === 'gw') {
         var btn = page.locator('#gw-list button[aria-label^="Buy ' + st[1] + ' for"], #gw-list button[aria-label="Add ' + st[1] + '"]');
         if (await btn.count() && await btn.isEnabled()) await btn.click();
@@ -98,6 +111,7 @@ async function playthrough(browser, base, label, viewport) {
     if (m % 2 === 1 && await page.isVisible('#btn-skip-anim')) await page.click('#btn-skip-anim');
     await page.waitForSelector('#view-results:not([hidden])', { timeout: 10000 });
     if (m === 7) await page.screenshot({ path: path.join(OUT, label + '-07-results.png'), fullPage: true });
+    if (m === 11) await page.screenshot({ path: path.join(OUT, label + '-07b-county-fair.png'), fullPage: true });
     var txt = await page.textContent('#btn-main');
     if (/decision/.test(txt)) {
       await page.click('#btn-main');
@@ -114,11 +128,18 @@ async function playthrough(browser, base, label, viewport) {
       await page.waitForSelector('#screen-game:not([hidden])');
     }
   }
+  var stillPlaying = await page.evaluate(function () { var s = window.OTGUI.state(); return s.phase === 'plan' && s.turn === 37; });
+  if (!stillPlaying) errors.push('the game did not keep going past month 36');
+  await page.screenshot({ path: path.join(OUT, label + '-08b-month38.png'), fullPage: true });
+  await page.click('#btn-report');
   await page.waitForSelector('#screen-end:not([hidden])');
-  await page.screenshot({ path: path.join(OUT, label + '-09-end.png'), fullPage: true });
+  await page.screenshot({ path: path.join(OUT, label + '-09-report.png'), fullPage: true });
   var ribbon = await page.textContent('#end-heading');
+  var overflowReport = await page.evaluate(function () { return document.documentElement.scrollWidth - window.innerWidth; });
+  await page.locator('#end .end-actions').first().getByRole('button', { name: 'Back to the farm' }).click();
+  await page.waitForSelector('#screen-game:not([hidden])');
   // no horizontal scroll on the page
-  var overflow = await page.evaluate(function () { return document.documentElement.scrollWidth - window.innerWidth; });
+  var overflow = Math.max(overflowReport, await page.evaluate(function () { return document.documentElement.scrollWidth - window.innerWidth; }));
   await ctx.close();
   return { label: label, ribbon: ribbon, errors: errors, overflow: overflow };
 }

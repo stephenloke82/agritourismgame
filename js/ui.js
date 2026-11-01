@@ -162,10 +162,9 @@
   }
 
   function renderMeters() {
-    var t = Math.min(s.turn, R.turns - 1);
-    var shownTurn = s.phase === 'plan' ? s.turn : (s.lastResult ? s.lastResult.turn : t);
-    $('date-label').textContent = E.monthLabel(shownTurn) + ' · ' + (shownTurn + 1) + '/' + R.turns;
-    $('date-label').setAttribute('aria-label', E.monthLabel(shownTurn) + ', month ' + (shownTurn + 1) + ' of ' + R.turns);
+    var shownTurn = s.phase === 'plan' ? s.turn : (s.lastResult ? s.lastResult.turn : s.turn);
+    $('date-label').textContent = E.monthLabel(shownTurn);
+    $('date-label').setAttribute('aria-label', E.monthLabel(shownTurn) + ', month ' + (shownTurn + 1));
     var c = $('m-cash'); c.textContent = money(s.cash); c.classList.toggle('neg', s.cash < 0);
     var full = Math.round(s.stars);
     $('m-stars').innerHTML = '★★★★★'.slice(0, full) + '<span class="off">' + '★★★★★'.slice(0, 5 - full) + '</span> ' + s.stars.toFixed(1);
@@ -199,7 +198,8 @@
     if (r.shortFrac > 0.02) return 'There were more jobs than hands. Some harvest was lost. Hired help in busy months pays for itself.';
     if (r.rain >= 2 && !E.owned(s, 'booking') && r.attractions.some(function (x) { return x.rainLoss > 30; })) return 'Rain kept people home. Online booking with rain checks would have saved about half of those visits.';
     if (r.staminaAfter < 35) return 'Family Stamina is getting low. A "Rest the Family" month soon would be wise.';
-    if (r.yearEnd) return 'That\'s the end of year ' + r.yearEnd.year + '. Visitor profit this year: ' + money(r.yearEnd.visitorProfit) + '. The goal is ' + money(R.goal) + ' in year 3.';
+    if (r.yearEnd) return r.yearEnd.tier === 0 ? 'A Blue Ribbon year! Keep the family rested and do it again.' :
+      'The county fair judged year ' + r.yearEnd.year + '. A Blue Ribbon needs ' + money(R.goal) + ' of visitor profit in a year, without a burnout. Aim for it by year ' + R.goalYear + '.';
     if (r.visitorProfit > 0) return 'A profitable month from visitors. Look at hours as well as dollars — the family\'s time is the scarcest thing on the farm.';
     if (r.visitors < 30) return 'A quiet month. Upkeep and insurance still have to be paid, which is why season planning matters.';
     return 'Visitors cost money before they make money. Watch which attractions earn the most per hour.';
@@ -220,6 +220,7 @@
   function renderPlan() {
     var list = clear($('plot-list'));
     s.plots.forEach(function (p, i) {
+      if (!E.plotOwned(s, i)) return;
       var st = plotStatus(i);
       var b = el('button', {
         type: 'button', class: 'plot-btn ' + st.cls + (s.tutorial === 1 && i === 0 ? ' pulse' : ''),
@@ -232,6 +233,19 @@
       ]);
       list.appendChild(el('li', null, [b]));
     });
+    if (s.plotsOwned < R.maxPlots) {
+      var buy = E.canBuyPlot(s);
+      list.appendChild(el('li', null, [el('button', {
+        type: 'button', class: 'plot-btn buy-land',
+        'aria-label': 'Buy another field for ' + money(E.plotCost(s)),
+        onclick: function () { openBuyLand(); }
+      }, [
+        el('span', { class: 'plot-num', text: (R.maxPlots - s.plotsOwned) + ' more fields for sale' }),
+        el('span', { class: 'plot-what', text: '+ Buy more land' }),
+        el('span', { class: 'plot-status', text: money(E.plotCost(s)) + (buy.ok ? '' : ' · ' + buy.reason) })
+      ])]));
+    }
+    $('plots-sub').textContent = 'You own ' + s.plotsOwned + ' of ' + R.maxPlots + ' fields. Tap a plot on the map or a button below to build.';
 
     // focus
     var fc = clear($('focus-choices'));
@@ -315,28 +329,39 @@
   }
 
   function renderGroundwork() {
-    var ul = clear($('gw-list'));
-    Object.keys(G).forEach(function (id) {
-      var g = G[id];
-      var done = E.owned(s, id);
-      var pending = id === 'zoning' && E.zoningPending(s);
-      var can = E.canBuildGw(s, id);
-      var right;
-      if (done) right = el('span', { class: 'gw-status', text: 'Done ✓' });
-      else if (pending) right = el('span', { class: 'gw-status', text: 'Approval in ' + Math.max(1, s.zoningReadyTurn - s.turn) + ' mo' });
-      else right = el('button', {
-        type: 'button', class: 'btn btn-small btn-gold', disabled: can.ok ? null : true,
-        'aria-label': (g.cost ? 'Buy ' : 'Add ') + g.name + (g.cost ? ' for ' + money(g.cost) : ''),
-        onclick: function () { doGw(id); }
-      }, [g.cost ? money(g.cost) : 'Add']);
-      var meta = (g.cost ? money(g.cost) + ' once' : 'No setup cost') + (g.upkeep ? ' · ' + money(g.upkeep) + '/mo' : '');
-      ul.appendChild(el('li', { class: 'gw-item' + (done ? ' done' : '') }, [
-        el('div', null, [el('div', { class: 'gw-name', text: g.name }), el('div', { class: 'gw-meta', text: meta })]),
-        right,
-        el('p', { class: 'gw-desc', text: g.blurb }),
-        (!done && !pending && !can.ok) ? el('p', { class: 'gw-why', text: can.reason }) : null
-      ]));
+    var box = clear($('gw-list'));
+    var done = Object.keys(G).filter(function (id) { return E.owned(s, id); }).length;
+    $('gw-count').textContent = done + ' of ' + Object.keys(G).length + ' done';
+    D.GW_GROUPS.forEach(function (grp) {
+      var ids = Object.keys(G).filter(function (id) { return G[id].group === grp[0]; });
+      var ul = el('ul', { class: 'gw-list' });
+      ids.forEach(function (id) { ul.appendChild(gwItem(id)); });
+      var have = ids.filter(function (id) { return E.owned(s, id); }).length;
+      box.appendChild(el('h3', { class: 'gw-group', text: grp[1] }, [el('span', { class: 'hint', text: ' ' + have + '/' + ids.length })]));
+      box.appendChild(ul);
     });
+  }
+
+  function gwItem(id) {
+    var g = G[id];
+    var done = E.owned(s, id);
+    var pending = id === 'zoning' && E.zoningPending(s);
+    var can = E.canBuildGw(s, id);
+    var right;
+    if (done) right = el('span', { class: 'gw-status', text: 'Done ✓' });
+    else if (pending) right = el('span', { class: 'gw-status', text: 'Approval in ' + Math.max(1, s.zoningReadyTurn - s.turn) + ' mo' });
+    else right = el('button', {
+      type: 'button', class: 'btn btn-small btn-gold', disabled: can.ok ? null : true,
+      'aria-label': (g.cost ? 'Buy ' : 'Add ') + g.name + (g.cost ? ' for ' + money(g.cost) : ''),
+      onclick: function () { doGw(id); }
+    }, [g.cost ? money(g.cost) : 'Add']);
+    var meta = (g.cost ? money(g.cost) + ' once' : 'No setup cost') + (g.upkeep ? ' · ' + money(g.upkeep) + '/mo' : '');
+    return el('li', { class: 'gw-item' + (done ? ' done' : '') }, [
+      el('div', null, [el('div', { class: 'gw-name', text: g.name }), el('div', { class: 'gw-meta', text: meta })]),
+      right,
+      done ? null : el('p', { class: 'gw-desc', text: g.blurb }),
+      (!done && !pending && !can.ok) ? el('p', { class: 'gw-why', text: can.reason }) : null
+    ]);
   }
 
   function doGw(id) {
@@ -371,8 +396,34 @@
     return el('dl', { class: 'facts' }, rows.map(function (r) { return el('div', null, [el('dt', { text: r[0] }), el('dd', { text: r[1] })]); }));
   }
 
+  function openBuyLand() {
+    if (s.phase !== 'plan') return;
+    var d = $('build-dialog'), body = clear($('build-body'));
+    var next = s.plotsOwned;
+    var can = E.canBuyPlot(s);
+    $('build-title').textContent = 'Buy more land';
+    body.appendChild(el('p', { text: 'The next field for sale is ' + window.OTGScene.PLOT_NAMES[next].toLowerCase() + ' (plot ' + (next + 1) + '). Each field costs more than the last, and every extra field adds ' + money(R.plotUpkeep) + ' a month in land tax and fencing.' }));
+    body.appendChild(el('dl', { class: 'facts' }, [
+      ['Price', money(E.plotCost(s))], ['Upkeep', money(R.plotUpkeep) + '/mo'], ['You own', s.plotsOwned + ' of ' + R.maxPlots + ' fields'], ['Cash', money(s.cash)]
+    ].map(function (r) { return el('div', null, [el('dt', { text: r[0] }), el('dd', { text: r[1] })]); })));
+    body.appendChild(el('p', { class: 'hint', text: 'More land is only worth it if the family has the hours to run what you build on it.' }));
+    if (!can.ok) body.appendChild(el('p', { class: 'why', text: can.reason }));
+    body.appendChild(el('div', { class: 'dialog-actions' }, [
+      el('button', { type: 'button', class: 'btn btn-plain', onclick: function () { closeDialog(d); } }, ['Not now']),
+      el('button', { type: 'button', class: 'btn btn-leaf', disabled: can.ok ? null : true, onclick: function () {
+        var res = E.buyPlot(s);
+        if (!res.ok) { announce(res.reason); return; }
+        save(); closeDialog(d);
+        announce('Bought plot ' + (res.plot + 1) + ' for ' + money(res.cost) + '. Cash now ' + money(s.cash) + '.');
+        render();
+      } }, ['Buy for ' + money(E.plotCost(s))])
+    ]));
+    openDialog(d);
+  }
+
   function openPlot(i) {
     if (s.phase !== 'plan') return;
+    if (!E.plotOwned(s, i)) { openBuyLand(); return; }
     var d = $('build-dialog'), body = clear($('build-body'));
     var p = s.plots[i];
     $('build-title').textContent = 'Plot ' + (i + 1) + ' · ' + window.OTGScene.PLOT_NAMES[i];
@@ -451,10 +502,11 @@
       rows.push(['row', A[x.id].name + ' · ' + num(x.visitors) + ' ' + A[x.id].unit + (x.rainLoss > 5 ? ' (rain kept ' + num(x.rainLoss) + ' away)' : ''), own]);
     });
     if (r.addOn > 0) rows.push(['row', 'Farm Stand sales to other visitors', r.addOn]);
+    if (r.snack > 0) rows.push(['row', 'Snack bar sales', r.snack]);
     rows.push(['section', 'Money out']);
     if (r.cogs) rows.push(['row', 'Cost of goods sold (produce, supplies)', -r.cogs]);
     if (r.upkeep) rows.push(['row', 'Attraction upkeep', -r.upkeep]);
-    if (r.gwUpkeep) rows.push(['row', 'Groundwork upkeep (insurance, website…)', -r.gwUpkeep]);
+    if (r.gwUpkeep) rows.push(['row', 'Groundwork and land upkeep (insurance, website…)', -r.gwUpkeep]);
     if (r.helpCost) rows.push(['row', 'Hired hands', -r.helpCost]);
     if (r.focusCost) rows.push(['row', 'Monthly focus: ' + D.FOCUS[r.focus].name, -r.focusCost]);
     rows.push(['row', 'Family living and farm overhead', -r.living]);
@@ -477,9 +529,20 @@
     var ytd = E.yearProfit(s, year);
     var pct = Math.max(0, Math.min(100, ytd / R.goal * 100));
     box.appendChild(el('div', { class: 'goal-box' }, [
-      el('div', { html: 'Visitor profit this month: <strong>' + signedMoney(r.visitorProfit) + '</strong><br>Year ' + year + ' so far: <strong>' + money(ytd) + '</strong> of the ' + money(R.goal) + ' goal' + (year < 3 ? ' (only year 3 counts for the ribbon)' : '') }),
+      el('div', { html: 'Visitor profit this month: <strong>' + signedMoney(r.visitorProfit) + '</strong><br>Year ' + year + ' so far: <strong>' + money(ytd) + '</strong> of the ' + money(R.goal) + ' Blue Ribbon mark' }),
       el('div', { class: 'progress', role: 'img', 'aria-label': Math.round(pct) + '% of the goal' }, [el('span', { style: 'width:' + pct + '%' })])
     ]));
+
+    if (r.yearEnd) {
+      box.appendChild(el('div', { class: 'fair-box' }, [
+        el('div', { class: 'fair-ribbon', html: ribbonSvg(r.yearEnd.tier) }),
+        el('div', null, [
+          el('p', { class: 'card-kicker', text: 'County fair · Year ' + r.yearEnd.year }),
+          el('p', { class: 'fair-title', text: r.yearEnd.ribbon }),
+          el('p', { text: 'Visitor profit this year: ' + money(r.yearEnd.visitorProfit) + '. Blue needs ' + money(R.goal) + ', Red ' + money(40000) + ', White ' + money(20000) + '. Each burnout that year costs a ribbon.' })
+        ])
+      ]));
+    }
 
     var chips = el('ul', { class: 'meter-changes', 'aria-label': 'Meter changes' });
     var prev = s.history.length > 1 ? s.history[s.history.length - 2] : null;
@@ -545,10 +608,10 @@
     } else if (s.phase === 'results') {
       if (view === 'results') {
         var more = s.pendingCard && !s.cardOutcome;
-        b.textContent = more ? 'Next: a decision' : (s.gameOver || s.turn >= R.turns ? 'See your ribbon' : 'Next month');
+        b.textContent = more ? 'Next: a decision' : (s.gameOver ? 'See your farm report' : 'Next month');
         hint.textContent = more ? 'Something needs your answer.' : '';
       } else {
-        b.textContent = s.cardOutcome ? (s.gameOver || s.turn >= R.turns ? 'See your ribbon' : 'Next month') : 'Choose an answer above';
+        b.textContent = s.cardOutcome ? (s.gameOver ? 'See your farm report' : 'Next month') : 'Choose an answer above';
         b.disabled = !s.cardOutcome;
         hint.textContent = '';
       }
@@ -627,31 +690,45 @@
 
   function showEnd() {
     var rep = E.endReport(s);
+    var playing = !s.gameOver;
     showScreen('screen-end');
     var box = clear($('end'));
-    var headline = rep.gameOver === 'bank' ? 'The bank closed the gate after ' + rep.monthsPlayed + ' months.' :
-      'Year-3 visitor profit: ' + money(rep.y3) + ' (goal ' + money(rep.goal) + ').';
+    var heading = rep.best ? s.farmName + ': best ribbon, ' + rep.best.ribbon : s.farmName + ': no ribbon yet';
+    var lines = [];
+    if (rep.gameOver === 'bank') lines.push('The bank closed the gate after ' + rep.monthsPlayed + ' months.');
+    else if (!rep.judged) lines.push('The county fair judges your farm at the end of each farm year. Finish a year to earn your first ribbon.');
+    if (rep.firstBlueYear) lines.push('First Blue Ribbon in year ' + rep.firstBlueYear + (rep.firstBlueYear <= rep.goalYear ? ', on target.' : '.') + (rep.blues > 1 ? ' ' + rep.blues + ' Blue Ribbon years in all.' : ''));
+    else if (rep.judged) lines.push('Blue Ribbon target: ' + money(rep.goal) + ' of visitor profit in a farm year, ideally by year ' + rep.goalYear + ', with no burnout.');
     var hero = el('div', { class: 'end-hero' }, [
-      el('div', { class: 'ribbon', html: ribbonSvg(rep.tier) }),
-      el('h2', { id: 'end-heading', tabindex: '-1', text: s.farmName + ' — ' + rep.ribbon }),
-      el('p', { text: 'County fair judging, ' + D.FARM_TYPES[s.farmType].name + ' farm, ' + D.LOCATIONS[s.location].name.toLowerCase() + '.' }),
-      el('p', null, [el('strong', { text: headline })]),
+      el('div', { class: 'ribbon', html: ribbonSvg(rep.best ? rep.best.tier : 3) }),
+      el('h2', { id: 'end-heading', tabindex: '-1', text: heading }),
+      el('p', { text: D.FARM_TYPES[s.farmType].name + ' farm, ' + D.LOCATIONS[s.location].name.toLowerCase() + ' · ' + rep.monthsPlayed + ' months on the farm' }),
+      lines.length ? el('p', null, [el('strong', { text: lines.join(' ') })]) : null,
       rep.reason ? el('p', { text: rep.reason }) : null
     ]);
     box.appendChild(hero);
+    box.appendChild(endActions(playing));
 
-    var yr = el('div', { class: 'year-row' }, rep.years.map(function (v, i) {
-      return stat('Year ' + (i + 1) + ' visitor profit', money(v), i === 2 ? (v >= rep.goal ? 'Goal met' : 'Goal ' + money(rep.goal)) : null, v < 0 ? 'bad' : (i === 2 && v >= rep.goal ? 'good' : ''));
-    }));
-    var panel1 = el('section', { class: 'panel' }, [
-      el('h2', { class: 'panel-title', text: 'How the farm did' }), yr,
-      el('div', { class: 'fc-grid' }, [
-        stat('Visitors welcomed', num(rep.totalVisitors)), stat('Cash at the end', money(rep.cash)),
-        stat('Star rating', rep.stars.toFixed(1) + ' / 5'), stat('Family Stamina', String(rep.stamina)),
-        stat('Spent on building', money(rep.capital)), stat('Burnout months', String(rep.burnouts), null, rep.burnouts ? 'bad' : 'good')
-      ])
+    // ribbons by year
+    var yearsTable = el('table', { class: 'report-table' }, [
+      el('thead', null, [el('tr', null, ['Year', 'Visitor profit', 'County fair'].map(function (h) { return el('th', { scope: 'col', text: h }); }))]),
+      el('tbody', null, rep.years.map(function (y) {
+        return el('tr', null, [
+          el('th', { scope: 'row', text: 'Year ' + y.year }),
+          el('td', { text: money(y.visitorProfit) }),
+          el('td', { text: y.complete ? y.ribbon : 'In progress' })
+        ]);
+      }))
     ]);
-    box.appendChild(panel1);
+    box.appendChild(el('section', { class: 'panel' }, [
+      el('h2', { class: 'panel-title', text: 'Year by year' }),
+      rep.years.length ? el('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Ribbons by year' }, [yearsTable]) : el('p', { text: 'No months played yet.' }),
+      el('div', { class: 'fc-grid' }, [
+        stat('Visitors welcomed', num(rep.totalVisitors)), stat('Cash now', money(rep.cash)),
+        stat('Star rating', rep.stars.toFixed(1) + ' / 5'), stat('Family Stamina', String(rep.stamina)),
+        stat('Spent on building and land', money(rep.capital)), stat('Burnout months', String(rep.burnouts), null, rep.burnouts ? 'bad' : 'good')
+      ])
+    ]));
 
     // attraction table
     var thead = el('thead', null, [el('tr', null, ['Attraction', 'Visitors', 'Income', 'Running costs', 'Hours', 'Profit', 'Profit / hour', 'Build cost'].map(function (h) { return el('th', { scope: 'col', text: h }); }))]);
@@ -662,26 +739,33 @@
         el('td', { text: r.perHour == null ? '—' : money(r.perHour) }), el('td', { text: money(r.build) })
       ]);
     }));
-    var panel2 = el('section', { class: 'panel' }, [
-      el('h2', { class: 'panel-title', text: 'Every attraction, all three years' }),
+    box.appendChild(el('section', { class: 'panel' }, [
+      el('h2', { class: 'panel-title', text: 'Every attraction so far' }),
       el('p', { class: 'panel-sub', text: 'Running costs include goods sold, upkeep and a share of hired help by hours worked. Build costs are shown separately.' }),
-      rep.rows.length ? el('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Attraction results table' }, [el('table', { class: 'report-table' }, [thead, tbody])]) : el('p', { text: 'You never opened an attraction.' }),
-      rep.best ? el('p', null, [el('strong', { text: 'Best earner per hour: ' }), rep.best.name + ' at ' + money(rep.best.perHour) + ' an hour.']) : null,
-      rep.worst ? el('p', null, [el('strong', { text: 'Worst earner per hour: ' }), rep.worst.name + ' at ' + money(rep.worst.perHour) + ' an hour.']) : null
-    ]);
-    box.appendChild(panel2);
-
-    var panel3 = el('section', { class: 'panel' }, [
-      el('h2', { class: 'panel-title', text: 'Lessons in your notebook (' + rep.lessons.length + ')' }),
-      rep.lessons.length ? el('ol', { class: 'lessons' }, rep.lessons.map(function (l) { return el('li', null, [el('strong', { text: l.title + ' — ' }), l.lesson]); })) : el('p', { text: 'No lessons collected this time.' })
-    ]);
-    box.appendChild(panel3);
-    box.appendChild(el('p', { class: 'disclaimer', text: 'All figures are game numbers, not real benchmarks or financial advice. Legal topics are general; check your own local and state rules, and talk to your insurer, extension office and planning department.' }));
-    box.appendChild(el('div', { class: 'end-actions' }, [
-      el('button', { type: 'button', class: 'btn btn-main', onclick: function () { store.clear(); s = null; buildSetup(); showScreen('screen-setup'); } }, ['Play again']),
-      el('button', { type: 'button', class: 'btn btn-plain', onclick: function () { initTitle(); } }, ['Back to title'])
+      rep.rows.length ? el('div', { class: 'table-wrap', tabindex: '0', role: 'region', 'aria-label': 'Attraction results table' }, [el('table', { class: 'report-table wide' }, [thead, tbody])]) : el('p', { text: 'You have not opened an attraction yet.' }),
+      rep.bestEarner ? el('p', null, [el('strong', { text: 'Best earner per hour: ' }), rep.bestEarner.name + ' at ' + money(rep.bestEarner.perHour) + ' an hour.']) : null,
+      rep.worstEarner ? el('p', null, [el('strong', { text: 'Worst earner per hour: ' }), rep.worstEarner.name + ' at ' + money(rep.worstEarner.perHour) + ' an hour.']) : null
     ]));
+
+    box.appendChild(el('section', { class: 'panel' }, [
+      el('h2', { class: 'panel-title', text: 'Lessons in your notebook (' + rep.lessons.length + ')' }),
+      rep.lessons.length ? el('ol', { class: 'lessons' }, rep.lessons.map(function (l) { return el('li', null, [el('strong', { text: l.title + ' — ' }), l.lesson]); })) : el('p', { text: 'No lessons collected yet.' })
+    ]));
+    box.appendChild(el('p', { class: 'disclaimer', text: 'All figures are game numbers, not real benchmarks or financial advice. Legal topics are general; check your own local and state rules, and talk to your insurer, extension office and planning department.' }));
+    box.appendChild(endActions(playing));
     $('end-heading').focus();
+  }
+
+  function endActions(playing) {
+    return el('div', { class: 'end-actions' }, [
+      playing ? el('button', { type: 'button', class: 'btn btn-main', onclick: function () { enterGame(); } }, ['Back to the farm']) : null,
+      el('button', { type: 'button', class: playing ? 'btn btn-plain' : 'btn btn-main', onclick: function () {
+        var go = function () { store.clear(); s = null; buildSetup(); showScreen('screen-setup'); };
+        if (playing) confirmBox('Start a new farm?', 'This replaces the farm you are playing now.', 'Start new').then(function (ok) { if (ok) go(); });
+        else go();
+      } }, ['Start a new farm']),
+      el('button', { type: 'button', class: 'btn btn-plain', onclick: function () { initTitle(); } }, ['Back to title'])
+    ]);
   }
 
   // ---------- wiring ----------
@@ -700,6 +784,7 @@
     $('btn-help').addEventListener('click', function () { openDialog($('help-dialog')); });
     $('btn-main').addEventListener('click', onMain);
     $('btn-skip-anim').addEventListener('click', function () { if (scene) scene.skip(); });
+    $('btn-report').addEventListener('click', function () { if (s && !animating) showEnd(); });
     $('btn-skip-tour').addEventListener('click', function () { s.tutorial = 0; save(); render(); });
     $('help-minus').addEventListener('click', function () { E.setPlan(s, { help: s.plan.help - 1 }); save(); refreshPlan(); });
     $('help-plus').addEventListener('click', function () { E.setPlan(s, { help: s.plan.help + 1 }); save(); refreshPlan(); });

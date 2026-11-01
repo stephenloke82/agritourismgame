@@ -35,9 +35,9 @@
     <section class="screen" id="screen-title" aria-labelledby="title-heading">
       <div class="crate-label">
         <div class="sunburst" aria-hidden="true"></div>
-        <p class="crate-kicker">A farm game in 36 months</p>
+        <p class="crate-kicker">A farm game, one month at a time</p>
         <h1 id="title-heading" class="crate-title">Open<br>the Gate</h1>
-        <p class="crate-sub">Add visitors to your working farm. Earn <strong>$60,000 a year</strong> from them by year 3 — without burning out the family.</p>
+        <p class="crate-sub">Add visitors to your working farm. Earn a Blue Ribbon with <strong>$60,000 a year</strong> from them, ideally by year 3, without burning out the family. Play as long as you like.</p>
         <div class="crate-actions">
           <button class="btn btn-main" id="btn-continue" type="button" hidden>Continue your farm</button>
           <button class="btn btn-gold" id="btn-new" type="button">Start a new farm</button>
@@ -87,7 +87,10 @@
             <div class="dot-body">
               <p class="dot-name" id="dot-name">Dot, your mentor</p>
               <p class="dot-tip" id="dot-tip" aria-live="polite"></p>
-              <button class="link-btn" id="btn-skip-tour" type="button" hidden>Skip the tour</button>
+              <div class="dot-actions">
+                <button class="link-btn" id="btn-skip-tour" type="button" hidden>Skip the tour</button>
+                <button class="btn btn-small btn-plain" id="btn-report" type="button">Farm report and ribbons</button>
+              </div>
             </div>
           </aside>
         </div>
@@ -97,7 +100,7 @@
           <div id="view-plan">
             <section class="panel" aria-labelledby="plots-heading">
               <h2 class="panel-title" id="plots-heading">Your farm map</h2>
-              <p class="panel-sub">Tap a plot on the map or a button below to build.</p>
+              <p class="panel-sub" id="plots-sub">Tap a plot on the map or a button below to build.</p>
               <ul class="plot-list" id="plot-list"></ul>
             </section>
 
@@ -129,8 +132,8 @@
 
             <section class="panel" aria-labelledby="gw-heading">
               <h2 class="panel-title" id="gw-heading">Groundwork</h2>
-              <p class="panel-sub">The paperwork, parking and plumbing that keep visitors safe and coming back.</p>
-              <ul class="gw-list" id="gw-list"></ul>
+              <p class="panel-sub">The paperwork, parking and plumbing that keep visitors safe and coming back. <span id="gw-count"></span></p>
+              <div id="gw-list"></div>
             </section>
           </div>
 
@@ -183,10 +186,11 @@
       <button class="btn-close" value="close" aria-label="Close">×</button>
     </form>
     <div class="dialog-body prose">
-      <p><strong>Goal:</strong> by year 3, earn <strong>$60,000 a year in visitor profit</strong> (visitor income minus the costs of running attractions, groundwork and hired help — not counting build costs or crop sales), without the family burning out.</p>
+      <p><strong>Goal:</strong> earn <strong>$60,000 in visitor profit in a farm year</strong> (visitor income minus the costs of running attractions, groundwork, land and hired help, not counting build costs or crop sales), ideally by year 3, without the family burning out.</p>
+      <p>The game has no end. At the end of every farm year the <strong>county fair</strong> awards a ribbon: Blue for $60,000, Red for $40,000, White for $20,000, otherwise Honorable Mention. Each burnout that year costs a ribbon. Open <strong>Farm report and ribbons</strong> any time to see how you are doing.</p>
       <h3>Each month</h3>
       <ol>
-        <li><strong>Build</strong> attractions on empty plots and do <strong>groundwork</strong> (insurance, parking, permits…).</li>
+        <li><strong>Build</strong> attractions on empty plots, <strong>buy more land</strong> when you need room, and do <strong>groundwork</strong> (insurance, parking, permits, shade, signs…).</li>
         <li>Choose <strong>one focus</strong>: Promote, Fix and Tidy, or Rest the Family.</li>
         <li>Set your <strong>prices</strong> and, once payroll is set up, how many <strong>hired hands</strong> you need.</li>
         <li>Check the <strong>forecast</strong>, then press <strong>Open the gate</strong>.</li>

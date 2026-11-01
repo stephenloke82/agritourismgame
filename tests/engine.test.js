@@ -14,8 +14,8 @@ function playMonth(s, choice) {
   E.nextMonth(s);
 }
 
-test('data: 12 attractions, enough cards, and every card is well formed', function () {
-  assert.strictEqual(Object.keys(D.ATTRACTIONS).length, 12);
+test('data: 15 attractions, enough cards, and every card is well formed', function () {
+  assert.strictEqual(Object.keys(D.ATTRACTIONS).length, 15);
   var regular = D.CARDS.filter(function (c) { return !c.followupOnly; });
   assert.ok(regular.length >= 24, 'at least 24 dilemma cards');
   D.CARDS.forEach(function (c) {
@@ -165,7 +165,9 @@ test('going past the credit line twice ends the game', function () {
   if (s.pendingCard) E.chooseCard(s, 0);
   E.nextMonth(s);
   assert.strictEqual(s.phase, 'ended');
-  assert.strictEqual(E.endReport(s).ribbon, 'Honorable Mention');
+  var rep = E.endReport(s);
+  assert.strictEqual(rep.gameOver, 'bank');
+  assert.strictEqual(rep.judged, 0, 'no full year was played, so nothing was judged');
 });
 
 test('choosing a card applies effects and records the lesson', function () {
@@ -184,13 +186,68 @@ test('choosing a card applies effects and records the lesson', function () {
   assert.strictEqual(E.chooseCard(s, 1), null, 'cannot answer twice');
 });
 
-test('a full game always ends after 36 months with a report', function () {
-  var res = sim.play(sim.strategies.thoughtful, 'livestock', 'remote', 99);
-  assert.strictEqual(res.s.phase, 'ended');
-  assert.strictEqual(res.rep.monthsPlayed, 36);
-  assert.ok(['Blue Ribbon', 'Red Ribbon', 'White Ribbon', 'Honorable Mention'].indexOf(res.rep.ribbon) >= 0);
+test('the game is endless and the county fair judges every year', function () {
+  var res = sim.play(sim.strategies.thoughtful, 'livestock', 'remote', 99, 60);
+  assert.strictEqual(res.s.phase, 'plan', 'still playing after five years');
+  assert.strictEqual(res.rep.monthsPlayed, 60);
+  assert.strictEqual(res.rep.judged, 5);
+  res.rep.years.forEach(function (y) {
+    assert.ok(E.ribbons.indexOf(y.ribbon) >= 0, 'year ' + y.year + ' has a ribbon');
+    assert.strictEqual(y.tier, E.yearTier(res.s, y.year));
+  });
   assert.ok(res.rep.rows.length > 0);
   assert.ok(res.rep.lessons.length > 0);
+});
+
+test('a burnout costs that year a ribbon', function () {
+  var s = fresh();
+  for (var i = 0; i < 12; i++) s.history.push({ turn: i, year: 1, visitorProfit: 6000, visitors: 100, burnout: i === 5 });
+  assert.strictEqual(E.yearProfit(s, 1), 72000);
+  assert.strictEqual(E.yearTier(s, 1), 1, 'Blue money, one burnout: Red');
+});
+
+test('extra land can be bought, gets dearer, and adds upkeep', function () {
+  var s = fresh();
+  s.cash = 100000;
+  assert.strictEqual(E.canBuild(s, 'stand', D.RULES.basePlots).ok, false, 'cannot build on land you do not own');
+  var first = E.buyPlot(s), second = E.buyPlot(s);
+  assert.ok(first.ok && second.ok);
+  assert.ok(second.cost > first.cost);
+  assert.strictEqual(s.plotsOwned, D.RULES.basePlots + 2);
+  assert.ok(E.canBuild(s, 'stand', D.RULES.basePlots).ok);
+  assert.strictEqual(E.forecast(s).landUpkeep, 2 * D.RULES.plotUpkeep);
+  while (E.canBuyPlot(s).ok) E.buyPlot(s);
+  assert.strictEqual(s.plotsOwned, D.RULES.maxPlots);
+});
+
+test('new setup options change the month', function () {
+  var s = fresh(); s.turn = 7; s.cash = 100000;
+  E.build(s, 'pumpkin', 0); s.plots[0].builtTurn = 0; s.plots[0].monthsOpen = 12;
+  var base = E.computeMonth(s, { rain: 0 });
+  E.buildGw(s, 'signage');
+  assert.ok(E.computeMonth(s, { rain: 0 }).demand > base.demand, 'road signs bring more visitors');
+  var beforeCard = E.computeMonth(s, { rain: 0 });
+  E.buildGw(s, 'cardpay');
+  var withCard = E.computeMonth(s, { rain: 0 });
+  assert.ok(withCard.revenue > beforeCard.revenue, 'card payments lift spend');
+  assert.strictEqual(E.canBuildGw(s, 'snackbar').ok, false, 'snack bar needs handwash stations');
+  E.buildGw(s, 'handwash'); E.buildGw(s, 'snackbar');
+  var snack = E.computeMonth(s, { rain: 0 });
+  assert.ok(snack.snack > 0 && snack.revenue > withCard.revenue);
+  E.buildGw(s, 'cooler');
+  assert.ok(E.computeMonth(s, { rain: 0 }).cogs < snack.cogs, 'a cooler cuts waste');
+});
+
+test('saves from the 36-month version load into endless play', function () {
+  var s = fresh();
+  E.build(s, 'stand', 0);
+  var old = JSON.parse(E.serialize(s));
+  old.v = 1; old.plots = old.plots.slice(0, 10); delete old.plotsOwned;
+  var t = E.deserialize(JSON.stringify(old));
+  assert.ok(t);
+  assert.strictEqual(t.plots.length, D.PLOT_COUNT);
+  assert.strictEqual(t.plotsOwned, D.RULES.basePlots);
+  assert.strictEqual(t.plots[0].id, 'stand');
 });
 
 test('save and load round-trips, and bad saves are rejected', function () {
@@ -210,8 +267,8 @@ test('balance: careful play usually earns Blue, careless expansion usually fails
     locs.forEach(function (loc) {
       for (var i = 0; i < 4; i++) {
         n++;
-        if (sim.play(sim.strategies.thoughtful, ft, loc, 500 + i).rep.tier === 0) smartBlue++;
-        if (sim.play(sim.strategies.careless, ft, loc, 500 + i).rep.tier >= 2) carelessFail++;
+        if (sim.play(sim.strategies.thoughtful, ft, loc, 500 + i).tier3 === 0) smartBlue++;
+        if (sim.play(sim.strategies.careless, ft, loc, 500 + i).tier3 >= 2) carelessFail++;
       }
     });
   });

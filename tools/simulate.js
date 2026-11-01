@@ -14,7 +14,7 @@ function monthsUntilOpen(s, id) {
   for (var k = 0; k < 12; k++) if (A[id].season[E.calMonth(s.turn + k)] > 0) return k;
   return 99;
 }
-function freePlot(s) { return s.plots.indexOf(null); }
+function freePlot(s) { return E.freePlot(s); }
 
 function chooseHelp(s, maxLoad) {
   if (!E.owned(s, 'payroll')) return 0;
@@ -44,10 +44,10 @@ function randomCard(s) {
 // ---------- strategies ----------
 // Each plan entry: [id, kind, earliestTurn]. Attractions wait until they'd be ready for their season.
 var CORE = {
-  orchard: ['upick', 'pumpkin', 'maze', 'hayride', 'trees', 'workshops', 'school', 'petting'],
-  garden: ['upick', 'pumpkin', 'maze', 'workshops', 'hayride', 'trees', 'school', 'petting'],
-  livestock: ['petting', 'pumpkin', 'school', 'maze', 'hayride', 'trees', 'workshops', 'upick'],
-  grain: ['maze', 'pumpkin', 'hayride', 'trees', 'upick', 'workshops', 'school', 'petting']
+  orchard: ['upick', 'pumpkin', 'maze', 'hayride', 'trees', 'workshops', 'school', 'petting', 'sunflowers', 'playground', 'pond'],
+  garden: ['upick', 'pumpkin', 'maze', 'workshops', 'sunflowers', 'hayride', 'trees', 'school', 'petting', 'playground', 'pond'],
+  livestock: ['petting', 'pumpkin', 'school', 'maze', 'hayride', 'trees', 'workshops', 'pond', 'upick', 'playground', 'sunflowers'],
+  grain: ['maze', 'pumpkin', 'hayride', 'sunflowers', 'trees', 'upick', 'workshops', 'school', 'petting', 'playground', 'pond']
 };
 
 function thoughtful(opts) {
@@ -86,6 +86,11 @@ function thoughtful(opts) {
       if (E.owned(s, 'parking1') && !E.owned(s, 'parking2') && (peakDemand > 1700 || (cm === 8 && t > 12)) && spend(3000)) E.buildGw(s, 'parking2');
       if (!E.owned(s, 'restrooms') && t >= 4 && spend(5500)) E.buildGw(s, 'restrooms');
       if (!E.owned(s, 'booking') && E.owned(s, 'website') && t >= 5 && spend(900)) E.buildGw(s, 'booking');
+      // the newer setup options, roughly in order of value for money
+      [['cardpay', 2], ['firstaid', 3], ['signage', 3], ['shade', 4], ['fencing', 6], ['snackbar', 10], ['accessible', 14], ['cooler', 16]]
+        .forEach(function (g) { if (!E.owned(s, g[0]) && t >= g[1] && E.canBuildGw(s, g[0]).ok && spend(G[g[0]].cost + 6000)) E.buildGw(s, g[0]); });
+      // buy land once every plot is busy and there is money and family time to spare
+      if (opts.land && freePlot(s) < 0 && s.stamina > 60 && E.canBuyPlot(s).ok && spend(E.plotCost(s) + 15000)) E.buyPlot(s);
       if (opts.events && !s.gw.zoning && !E.zoningPending(s) && t >= 6 && spend(1500)) E.buildGw(s, 'zoning');
       if (opts.events && s.gw.zoning) {
         opts.events.forEach(function (id) {
@@ -118,6 +123,7 @@ var careless = {
   name: 'careless',
   plan: function (s) {
     // builds every attraction it can afford, as soon as it can, and pushes the family hard
+    if (freePlot(s) < 0 && E.canBuyPlot(s).ok) E.buyPlot(s);
     var ids = Object.keys(A).sort(function (a, b) { return A[b].cost - A[a].cost; });
     ids.forEach(function (id) {
       if (freePlot(s) < 0) return;
@@ -134,6 +140,7 @@ var greedy = {
   plan: function (s) {
     ['insurance', 'zoning', 'restrooms', 'parking1', 'website', 'kitchen'].forEach(function (g) { if (E.canBuildGw(s, g).ok) E.buildGw(s, g); });
     var ids = Object.keys(A).sort(function (a, b) { return A[b].cost - A[a].cost; });
+    if (freePlot(s) < 0 && E.canBuyPlot(s).ok) E.buyPlot(s);
     ids.forEach(function (id) { if (freePlot(s) >= 0 && E.canBuild(s, id).ok) E.build(s, id); });
     E.setPlan(s, { focus: s.stamina < 20 ? 'rest' : 'promote', price: 'fair' });
   },
@@ -149,6 +156,7 @@ var idle = {
 var modest = thoughtful({ name: 'modest (stand+2)', limit: 3, reserve: 0 });
 var medium = thoughtful({ name: 'careful (5 attr)', limit: 5, reserve: -5000 });
 var smart = thoughtful({ name: 'thoughtful' });
+var smartLand = thoughtful({ name: 'thoughtful+land', land: true, events: ['workshops', 'dinners', 'weddings', 'cabin'] });
 var smartEvents = thoughtful({ name: 'thoughtful+events', events: ['workshops', 'dinners', 'weddings', 'cabin'] });
 
 function randomPlayer() {
@@ -171,9 +179,11 @@ function randomPlayer() {
 }
 
 // ---------- run ----------
-function play(strategy, farmType, location, seed) {
+// The game is endless; balance is judged on the classic target, the year-3 county fair.
+function play(strategy, farmType, location, seed, months) {
+  months = months || 36;
   var s = E.newGame({ seed: seed, farmType: farmType, location: location, tutorial: false });
-  while (s.phase !== 'ended') {
+  while (s.phase !== 'ended' && s.history.length < months) {
     if (s.phase === 'plan') {
       strategy.plan(s);
       E.openGate(s);
@@ -183,11 +193,13 @@ function play(strategy, farmType, location, seed) {
       E.nextMonth(s);
     }
   }
-  return { s: s, rep: E.endReport(s) };
+  var rep = E.endReport(s);
+  var tier3 = s.gameOver || E.completedYears(s) < 3 ? 3 : E.yearTier(s, 3);
+  return { s: s, rep: rep, tier3: tier3 };
 }
 
 function run(n) {
-  var strategies = [smart, smartEvents, medium, modest, greedy, careless, randomPlayer(), idle];
+  var strategies = [smart, smartEvents, smartLand, medium, modest, greedy, careless, randomPlayer(), idle];
   var farms = Object.keys(D.FARM_TYPES), locs = Object.keys(D.LOCATIONS);
   var summary = [];
   strategies.forEach(function (st) {
@@ -198,7 +210,7 @@ function run(n) {
         var c = { ribbons: [0, 0, 0, 0], y3: 0, bank: 0, burn: 0 };
         for (var i = 0; i < n; i++) {
           var res = play(st, ft, loc, 1000 + i * 7919);
-          c.ribbons[res.rep.tier]++; all.ribbons[res.rep.tier]++;
+          c.ribbons[res.tier3]++; all.ribbons[res.tier3]++;
           c.y3 += res.rep.y3; all.y3.push(res.rep.y3);
           if (res.rep.gameOver) { c.bank++; all.bank++; }
           if (res.rep.burnouts) { c.burn++; all.burn++; }
@@ -224,4 +236,4 @@ function run(n) {
 function pct(a, b) { return (Math.round(100 * a / b) + '%').padStart(4); }
 
 if (require.main === module) run(parseInt(process.argv[2], 10) || 30);
-module.exports = { play: play, strategies: { thoughtful: smart, careless: careless, greedy: greedy, idle: idle, modest: modest } };
+module.exports = { play: play, strategies: { thoughtfulLand: smartLand, thoughtful: smart, careless: careless, greedy: greedy, idle: idle, modest: modest } };

@@ -13,7 +13,7 @@
   var R = D.RULES;
   var A = D.ATTRACTIONS;
   var G = D.GROUNDWORK;
-  var SAVE_VERSION = 1;
+  var SAVE_VERSION = 2;
 
   // ---------- small helpers ----------
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -58,7 +58,7 @@
       lastResult: null, pendingCard: null, cardOutcome: null,
       burnouts: 0, burnoutNext: false, bankWarnings: 0, gameOver: null,
       tutorial: opts.tutorial === false ? 0 : 1,
-      wetYear: 0
+      wetYear: 0, plotsOwned: R.basePlots
     };
     for (var i = 0; i < D.PLOT_COUNT; i++) s.plots.push(null);
     // some years are wetter than others
@@ -96,6 +96,26 @@
     return R.baseParking;
   }
   function creditLeft(s) { return s.cash + R.creditLine; }
+  function plotOwned(s, i) { return i < s.plotsOwned; }
+  function freePlot(s) {
+    for (var i = 0; i < s.plotsOwned; i++) if (!s.plots[i]) return i;
+    return -1;
+  }
+  function plotCost(s) { return R.plotBaseCost + R.plotStepCost * (s.plotsOwned - R.basePlots); }
+  function canBuyPlot(s) {
+    if (s.phase !== 'plan') return { ok: false, reason: 'You can buy land while planning a month.' };
+    if (s.plotsOwned >= R.maxPlots) return { ok: false, reason: 'You own every field there is.' };
+    if (plotCost(s) > creditLeft(s)) return { ok: false, reason: 'The bank will not lend that much right now.' };
+    return { ok: true, cost: plotCost(s) };
+  }
+  function buyPlot(s) {
+    var c = canBuyPlot(s);
+    if (!c.ok) return c;
+    s.cash -= c.cost;
+    s.capital += c.cost;
+    s.plotsOwned++;
+    return { ok: true, plot: s.plotsOwned - 1, cost: c.cost };
+  }
 
   function seasonText(id) {
     var sea = A[id].season, out = [], start = -1;
@@ -119,9 +139,10 @@
     var a = A[id];
     if (!a) return { ok: false, reason: 'Unknown attraction.' };
     if (s.phase !== 'plan') return { ok: false, reason: 'You can build while planning a month.' };
+    if (plot != null && !plotOwned(s, plot)) return { ok: false, reason: 'You need to buy that field first.' };
     if (plot != null && s.plots[plot]) return { ok: false, reason: 'That plot is already in use.' };
     if (has(s, id)) return { ok: false, reason: 'You already have one.' };
-    if (plot == null && s.plots.indexOf(null) < 0) return { ok: false, reason: 'No empty plots left.' };
+    if (plot == null && freePlot(s) < 0) return { ok: false, reason: 'No empty plots left. Buy more land.' };
     var missing = a.requires.filter(function (r) { return !owned(s, r); });
     if (missing.length) {
       return { ok: false, reason: 'Needs ' + missing.map(function (r) {
@@ -133,7 +154,7 @@
   }
 
   function build(s, id, plot) {
-    if (plot == null) plot = s.plots.indexOf(null);
+    if (plot == null) plot = freePlot(s);
     var c = canBuild(s, id, plot);
     if (!c.ok) return c;
     s.cash -= A[id].cost;
@@ -212,11 +233,15 @@
     var starMult = 0.55 + 0.15 * s.stars;
     // marketing effects add together rather than stacking
     var market = 1 + s.awareness + (owned(s, 'website') ? 0.08 : 0) + emailBoost(s) +
+      (owned(s, 'signage') ? 0.03 : 0) + (owned(s, 'accessible') ? 0.02 : 0) +
       ((!closed && focus === 'promote') ? 0.2 : 0);
     var modDraw = modProduct(s, 'draw', turn);
     var modPrice = modProduct(s, 'price', turn);
     var family = s.flags.familyDay ? 0.96 : 1;
-    var stay = 1 + Math.min(0.15, 0.04 * Math.max(0, openCount - 1));
+    var play = open.some(function (p) { return p.id === 'playground'; }) ? 0.05 : 0;
+    var stay = 1 + Math.min(0.15 + play, 0.04 * Math.max(0, openCount - 1) + play);
+    var cardPay = owned(s, 'cardpay') ? 1.025 : 1;
+    var summer = cm >= 5 && cm <= 7;
     var kitchen = owned(s, 'kitchen') ? 1.3 : 1;
     var standMult = (s.flags.noBaking ? 0.9 : 1) * kitchen;
 
@@ -248,11 +273,11 @@
     r.attractions.forEach(function (x) {
       var a = A[x.id];
       x.visitors = x.demand * scale;
-      var unitPrice = a.price * price.price * modPrice * stay;
+      var unitPrice = a.price * price.price * modPrice * stay * cardPay;
       if (x.id === 'stand') unitPrice *= standMult;
       if (x.id === 'dinners' && s.flags.chef) unitPrice *= 0.7;
       x.revenue = x.visitors * unitPrice;
-      x.cogs = x.revenue * a.cogs;
+      x.cogs = x.revenue * a.cogs * (owned(s, 'cooler') && a.cogs >= 0.2 ? 0.9 : 1);
       x.hours = a.hours + a.hoursPer * x.visitors;
       if (x.id === 'dinners' && s.flags.chef) x.hours *= 0.5;
       r.visitors += x.visitors;
@@ -265,11 +290,20 @@
     var stand = r.attractions.filter(function (x) { return x.id === 'stand'; })[0];
     if (stand) {
       var others = r.visitors - stand.visitors;
-      r.addOn = others * R.standAddOn * price.price * standMult;
+      r.addOn = others * R.standAddOn * price.price * standMult * cardPay;
       var addCogs = r.addOn * A.stand.cogs;
       stand.revenue += r.addOn; stand.cogs += addCogs;
       r.revenue += r.addOn; r.cogs += addCogs;
       stand.hours += others * 0.01; r.attrHours += others * 0.01;
+    }
+
+    // a snack bar sells a little to every visitor
+    r.snack = 0; r.snackCogs = 0; r.snackHours = 0;
+    if (owned(s, 'snackbar') && r.visitors > 0) {
+      r.snack = r.visitors * R.snackSpend * price.price * cardPay;
+      r.snackCogs = r.snack * 0.5;
+      r.snackHours = 25 + r.visitors * 0.01;
+      r.revenue += r.snack; r.cogs += r.snackCogs; r.attrHours += r.snackHours;
     }
 
     // upkeep on everything built (open or not)
@@ -282,6 +316,8 @@
       else r.attractions.push({ id: p.id, plot: s.plots.indexOf(p), closedNow: true, demand: 0, rainLoss: 0, visitors: 0, revenue: 0, cogs: 0, hours: 0, upkeep: u });
     });
     Object.keys(s.gw).forEach(function (k) { if (s.gw[k]) r.gwUpkeep += G[k].upkeep; });
+    r.landUpkeep = (s.plotsOwned - R.basePlots) * R.plotUpkeep;
+    r.gwUpkeep += r.landUpkeep;
 
     // labor
     // hired hands can take on most of the work, but the family still has to run the place
@@ -319,6 +355,8 @@
     if (r.visitors > 30) {
       var q = 2.7;
       q += owned(s, 'restrooms') ? 0.35 : (r.visitors > 300 ? -0.3 : 0);
+      if (owned(s, 'shade')) q += summer ? 0.12 : 0.03;
+      if (owned(s, 'accessible')) q += 0.05;
       q += 0.15 * Math.min(4, openCount - 1);
       if (focus === 'tidy') q += 0.4;
       q += price.quality;
@@ -343,8 +381,11 @@
     var hasAnimals = open.some(function (p) { return A[p.id].animals; }) || r.attractions.some(function (x) { return x.id === 'school' && !x.closedNow; });
     if (hasAnimals) target += owned(s, 'handwash') ? 8 : -12;
     else if (owned(s, 'handwash')) target += 4;
-    if (s.flags.fenced) target += 8;
-    if (s.flags.firstAid) target += 4;
+    if (s.flags.fenced || owned(s, 'fencing')) target += 8;
+    if (s.flags.fenced && owned(s, 'fencing')) target += 3;
+    if (s.flags.firstAid || owned(s, 'firstaid')) target += 4;
+    if (owned(s, 'shade') && summer) target += 4;
+    if (owned(s, 'accessible')) target += 3;
     if (s.stamina < 30) target -= 10;
     target -= 15 * (r.turnedAway / Math.max(1, r.demand));
     r.attractions.forEach(function (x) { target -= A[x.id].risk * Math.min(1, x.visitors / 500); });
@@ -401,6 +442,7 @@
       var sev = rand(s);
       var raw = sev < 0.6 ? randInt(s, 3000, 9000) : sev < 0.92 ? randInt(s, 10000, 25000) : randInt(s, 30000, 60000);
       if (owned(s, 'waivers')) raw *= 0.7;
+      if (owned(s, 'firstaid')) raw *= 0.85;
       var covered = owned(s, 'insurance');
       var cost = covered ? 1000 : raw;
       // pick the riskiest busy attraction as the scene
@@ -448,6 +490,14 @@
       }
     });
 
+    if (r.snack > 0) {
+      var sb = s.attrStats.snackbar || (s.attrStats.snackbar = { revenue: 0, costs: 0, hours: 0, visitors: 0, build: G.snackbar.cost });
+      sb.revenue += r.snack;
+      sb.costs += r.snackCogs + G.snackbar.upkeep;
+      sb.hours += r.snackHours;
+      sb.visitors += r.visitors;
+    }
+
     // zoning approval
     if (s.zoningReadyTurn != null && !s.gw.zoning && s.turn + 1 >= s.zoningReadyTurn) {
       s.gw.zoning = true;
@@ -460,12 +510,14 @@
 
     // burnout check
     var wasClosed = s.burnoutNext;
+    var burnedOut = false;
     s.burnoutNext = false;
     if (wasClosed) {
       s.stamina = Math.max(s.stamina, 50);
     } else if (s.stamina <= 0) {
       s.burnouts++;
       s.burnoutNext = true;
+      burnedOut = true;
       events.push('Family Stamina hit zero. Next month the farm closes so everyone can recover.');
       learn(s, 'burnout', 'Burnout', 'When the family runs out of energy, everything stops. Watch the hours, hire help before the peak, and rest before you have to.');
     }
@@ -492,13 +544,16 @@
       turn: s.turn, year: yearOf(s.turn), cm: cm, visitors: round(r.visitors), revenue: round(r.revenue),
       visitorProfit: round(r.visitorProfit), crop: round(r.crop), cash: round(s.cash), stars: s.stars,
       stamina: round(s.stamina), safety: round(s.safety), rain: rain, closed: r.closed,
-      turnedAway: round(r.turnedAway), incident: !!incident,
+      turnedAway: round(r.turnedAway), incident: !!incident, burnout: burnedOut,
       outdoorOpen: r.attractions.some(function (x) { return x.visitors > 0 && A[x.id].outdoor >= 0.5; })
     });
 
-    // year-end note
+    // the county fair judges every farm year
     if ((s.turn + 1) % 12 === 0) {
-      r.yearEnd = { year: yearOf(s.turn), visitorProfit: yearProfit(s, yearOf(s.turn)) };
+      var yr = yearOf(s.turn);
+      r.yearEnd = { year: yr, visitorProfit: yearProfit(s, yr), tier: yearTier(s, yr), ribbon: RIBBONS[yearTier(s, yr)] };
+      // next year brings different weather
+      s.wetYear = (rand(s) - 0.5) * 0.16 + D.LOCATIONS[s.location].wet;
     }
 
     s.lastResult = r;
@@ -543,7 +598,10 @@
       stars: function () { return s.stars; },
       stamina: function () { return s.stamina; },
       farmHours: function () { return D.FARM_TYPES[s.farmType].hours[calMonth(s.turn)]; },
-      canSpend: function (n) { return creditLeft(s) >= n; }
+      canSpend: function (n) { return creditLeft(s) >= n; },
+      freePlots: function () { var n = 0; for (var i = 0; i < s.plotsOwned; i++) if (!s.plots[i]) n++; return n; },
+      morePlots: function () { return s.plotsOwned < R.maxPlots; },
+      plotCost: function () { return plotCost(s); }
     };
     // card helpers look at the month just played; s.turn has not advanced yet when picking
     return h;
@@ -565,7 +623,7 @@
     var pool = D.CARDS.filter(function (c) {
       if (c.followupOnly) return false;
       var seen = s.seenCards[c.id];
-      if (seen != null && !(c.repeat && s.turn - seen >= 10)) return false;
+      if (seen != null && s.turn - seen < (c.repeat ? 10 : 30)) return false;
       try { return c.when(s, h); } catch (e) { return false; }
     });
     if (!pool.length) return null;
@@ -609,6 +667,7 @@
       s.zoningReadyTurn = s.zoningReadyTurn != null ? Math.min(s.zoningReadyTurn, s.turn + delay) : s.turn + delay;
       out.push('Zoning permit applied for (about ' + delay + (delay === 1 ? ' month)' : ' months)'));
     }
+    if (fx.plot && s.plotsOwned < R.maxPlots) { s.plotsOwned++; out.push('Added: one more field'); }
     if (fx.flag) Object.keys(fx.flag).forEach(function (k) { s.flags[k] = fx.flag[k]; });
     if (fx.followup) {
       if (fx.followup.chance == null || rand(s) < fx.followup.chance) {
@@ -657,7 +716,11 @@
       result: [ch.result, out.text].filter(Boolean).join(' '),
       effects: out.slice(), lesson: c.lesson
     };
-    if (s.stamina <= 0 && !s.burnoutNext) { s.burnoutNext = true; s.burnouts++; }
+    if (s.stamina <= 0 && !s.burnoutNext) {
+      s.burnoutNext = true; s.burnouts++;
+      var lastH = s.history[s.history.length - 1];
+      if (lastH) lastH.burnout = true;
+    }
     return s.cardOutcome;
   }
 
@@ -672,7 +735,7 @@
     if (s.pendingCard && !s.cardOutcome) return false;
     s.pendingCard = null;
     s.cardOutcome = null;
-    if (s.gameOver || s.turn >= R.turns) { s.phase = 'ended'; return true; }
+    if (s.gameOver) { s.phase = 'ended'; return true; }
     s.phase = 'plan';
     if (!owned(s, 'payroll')) s.plan.help = 0;
     return true;
@@ -698,7 +761,7 @@
     if (s.history.length && s.history[s.history.length - 1].turnedAway > 50) return { key: 'park', text: 'Cars were turned away last month. More parking means more visitors — and happier neighbors.' };
     if (f.turnedAway > 50) return { key: 'park2', text: 'This month you\'ll have more visitors than parking spaces. Consider a bigger lot.' };
     if (!s.plots.some(Boolean)) return { key: 'first', text: 'Build something by the gate! A Farm Stand is cheap and earns from every visitor.' };
-    if ((cm >= 2 && cm <= 5) && !has(s, 'pumpkin') && !has(s, 'maze') && s.plots.indexOf(null) >= 0) return { key: 'fall', text: 'Fall is when most visitors come. Plant a Pumpkin Patch or Corn Maze by early summer so it is ready in September.' };
+    if ((cm >= 2 && cm <= 5) && !has(s, 'pumpkin') && !has(s, 'maze') && freePlot(s) >= 0) return { key: 'fall', text: 'Fall is when most visitors come. Plant a Pumpkin Patch or Corn Maze by early summer so it is ready in September.' };
     if (!owned(s, 'waivers') && s.turn >= 2) return { key: 'waive', text: 'Waivers and warning signs are cheap and lift your Safety. Ask what your state requires.' };
     if (!owned(s, 'website') && s.turn >= 2) return { key: 'web', text: 'A simple website and listings help people find you, and grow your email list faster.' };
     if (!s.gw.zoning && !zoningPending(s) && s.turn >= 6) return { key: 'zone', text: 'Thinking about dinners, weddings or a cabin later? A zoning permit takes months. Apply early.' };
@@ -706,6 +769,9 @@
     if (f.visitors < 50 && s.plan.focus === 'promote' && s.stamina < 80) return { key: 'quiet', text: 'It\'s a quiet month. A good time to rest the family before the busy season.' };
     if (!owned(s, 'email') && s.turn >= 3) return { key: 'email', text: 'Start an email list. Past visitors are your cheapest future visitors.' };
     if (!owned(s, 'restrooms') && f.visitors > 300) return { key: 'rest', text: 'Proper restrooms lift your star rating when crowds come.' };
+    if (freePlot(s) < 0 && s.plotsOwned < R.maxPlots && s.cash > plotCost(s) + 10000 && s.stamina > 60) return { key: 'land', text: 'Every plot is in use. If the family has hours to spare, buying another field gives you room to grow.' };
+    if (!owned(s, 'firstaid') && s.turn >= 4 && s.history.some(function (h) { return h.visitors > 300; })) return { key: 'aid', text: 'With this many visitors, a first-aid station and some training is cheap protection.' };
+    if (!owned(s, 'cardpay') && s.turn >= 3 && f.visitors > 200) return { key: 'card', text: 'A card reader is cheap. Visitors who can tap to pay tend to spend a little more.' };
     if ((cm === 7 || cm === 8) && !owned(s, 'payroll')) return { key: 'help', text: 'Harvest and fall visitors arrive together. Line up seasonal help before September.' };
     return { key: 'ok', text: 'Things look steady. Keep an eye on the forecast hours — profit per hour matters as much as profit.' };
   }
@@ -713,46 +779,70 @@
   // ---------- end of game ----------
   var RIBBONS = ['Blue Ribbon', 'Red Ribbon', 'White Ribbon', 'Honorable Mention'];
 
+  function completedYears(s) { return Math.floor(s.history.length / 12); }
+
+  // a county fair ribbon for one finished farm year; each burnout that year costs a ribbon
+  function yearTier(s, year) {
+    var p = yearProfit(s, year);
+    var tier = p >= R.goal ? 0 : p >= 40000 ? 1 : p >= 20000 ? 2 : 3;
+    var burns = s.history.filter(function (h) { return h.year === year && h.burnout; }).length;
+    return Math.min(3, tier + burns);
+  }
+
   function endReport(s) {
-    var y3 = yearProfit(s, 3);
-    var tier;
-    if (s.gameOver === 'bank') tier = 3;
-    else {
-      tier = y3 >= R.goal ? 0 : y3 >= 40000 ? 1 : y3 >= 20000 ? 2 : 3;
-      tier = Math.min(3, tier + s.burnouts);
+    var done = completedYears(s);
+    var years = [];
+    for (var y = 1; y <= Math.max(done, E_YEARS_SHOWN(s)); y++) {
+      var complete = y <= done;
+      years.push({ year: y, visitorProfit: yearProfit(s, y), complete: complete,
+        tier: complete ? yearTier(s, y) : null, ribbon: complete ? RIBBONS[yearTier(s, y)] : null });
     }
+    var judged = years.filter(function (y) { return y.complete; });
+    var best = judged.slice().sort(function (a, b) { return a.tier - b.tier || b.visitorProfit - a.visitorProfit; })[0] || null;
+    var tier = best ? best.tier : 3;
+    var blues = judged.filter(function (y) { return y.tier === 0; }).length;
+    var firstBlue = judged.filter(function (y) { return y.tier === 0; })[0];
     var rows = Object.keys(s.attrStats).map(function (id) {
       var st = s.attrStats[id];
       var profit = st.revenue - st.costs;
       return {
-        id: id, name: A[id].name, revenue: round(st.revenue), costs: round(st.costs), build: round(st.build),
+        id: id, name: A[id] ? A[id].name : G[id].name, revenue: round(st.revenue), costs: round(st.costs), build: round(st.build),
         hours: round(st.hours), visitors: round(st.visitors), profit: round(profit),
         perHour: st.hours > 0 ? profit / st.hours : null
       };
     }).sort(function (a, b) { return b.profit - a.profit; });
     var ranked = rows.filter(function (r) { return r.hours >= 20 && r.perHour != null; })
       .sort(function (a, b) { return b.perHour - a.perHour; });
-    var gwUpkeep = 0, focus = 0, incidents = 0;
     var reason = s.gameOver === 'bank' ? 'The bank called in the loan.' :
-      s.burnouts > 0 ? ('The family burned out ' + s.burnouts + (s.burnouts === 1 ? ' time' : ' times') + ', which costs a ribbon each time.') : '';
+      s.burnouts > 0 ? ('The family burned out ' + s.burnouts + (s.burnouts === 1 ? ' time' : ' times') + '. Each burnout costs that year a ribbon.') : '';
     return {
-      ribbon: RIBBONS[tier], tier: tier, reason: reason,
-      years: [yearProfit(s, 1), yearProfit(s, 2), yearProfit(s, 3)],
-      y3: y3, goal: R.goal, burnouts: s.burnouts, gameOver: s.gameOver,
+      ribbon: best ? best.ribbon : 'No ribbon yet', tier: tier, judged: judged.length, reason: reason,
+      years: years, best: best, blues: blues, firstBlueYear: firstBlue ? firstBlue.year : null,
+      y3: yearProfit(s, 3), goal: R.goal, goalYear: R.goalYear, burnouts: s.burnouts, gameOver: s.gameOver,
       monthsPlayed: s.history.length,
       totalVisitors: s.history.reduce(function (t, h) { return t + h.visitors; }, 0),
       cash: round(s.cash), stars: s.stars, stamina: round(s.stamina), safety: round(s.safety),
-      rows: rows, best: ranked[0] || null, worst: ranked.length > 1 ? ranked[ranked.length - 1] : null,
-      capital: s.capital, lessons: s.lessons.slice()
+      rows: rows, bestEarner: ranked[0] || null, worstEarner: ranked.length > 1 ? ranked[ranked.length - 1] : null,
+      capital: s.capital, lessons: s.lessons.slice(), plotsOwned: s.plotsOwned
     };
   }
+  // show the year in progress too
+  function E_YEARS_SHOWN(s) { return s.history.length ? yearOf(s.history.length - 1) : 0; }
 
   // ---------- saving ----------
   function serialize(s) { return JSON.stringify(s); }
   function deserialize(str) {
     try {
       var s = JSON.parse(str);
-      if (!s || s.v !== SAVE_VERSION || !Array.isArray(s.plots)) return null;
+      if (!s || !Array.isArray(s.plots)) return null;
+      if (s.v === 1) {
+        // older saves: 10 plots and a 36-month game; carry them into endless play
+        while (s.plots.length < D.PLOT_COUNT) s.plots.push(null);
+        s.plotsOwned = R.basePlots;
+        if (s.phase === 'ended' && !s.gameOver) s.phase = s.pendingCard && !s.cardOutcome ? 'results' : 'plan';
+        s.v = 2;
+      }
+      if (s.v !== SAVE_VERSION) return null;
       return s;
     } catch (e) { return null; }
   }
@@ -765,7 +855,9 @@
     canBuild: canBuild, build: build, demolish: demolish, canBuildGw: canBuildGw, buildGw: buildGw,
     setPlan: setPlan, computeMonth: computeMonth, forecast: forecast, openGate: openGate,
     cardView: cardView, chooseCard: chooseCard, nextMonth: nextMonth, cardById: cardById, helpers: helpers,
-    mentorTip: mentorTip, endReport: endReport, yearProfit: yearProfit,
+    mentorTip: mentorTip, endReport: endReport, yearProfit: yearProfit, yearTier: yearTier, ribbons: RIBBONS,
+    completedYears: completedYears, plotOwned: plotOwned, freePlot: freePlot, plotCost: plotCost,
+    canBuyPlot: canBuyPlot, buyPlot: buyPlot,
     serialize: serialize, deserialize: deserialize
   };
 });

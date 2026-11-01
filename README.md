@@ -2,7 +2,7 @@
 
 A turn-based browser game for farmers who are thinking about adding agritourism to a working farm.
 
-You run a farm for **3 years, one month per turn (36 turns, about 15 minutes)**. The goal is to earn **$60,000 a year in visitor profit by year 3** without burning out the family. It runs in any modern browser, works on phones, needs no installation, and has no dependencies or build step.
+You run a farm one month per turn, for as long as you like. The goal is a **Blue Ribbon year: $60,000 of visitor profit in a farm year**, ideally by year 3, without burning out the family. Three years takes about 15 minutes. It runs in any modern browser, works on phones, needs no installation, and has no dependencies or build step.
 
 > All figures in the game are **game numbers**. They are not real-world benchmarks or financial advice. Legal topics (insurance, zoning, waivers, food labels, sales tax) are kept general. Always check your own local and state rules.
 
@@ -11,7 +11,13 @@ You run a farm for **3 years, one month per turn (36 turns, about 15 minutes)**.
 1. **Set up your farm.** Give it a name (it's painted on the barn), then pick a farm type (Orchard, Market Garden, Livestock or Grain) and a location (near a city, a small-town crossroads, or a remote valley). Each farm type has its own crop income, monthly work hours and attractions that suit it.
 2. **Each month:**
    - **Build** attractions on the 10 plots. Tap a plot on the map, or use the plot buttons.
-   - Do **groundwork**: insurance, waivers and signs, handwash stations, parking, restrooms, zoning permit, commercial kitchen, website, online booking, seasonal-help payroll and an email list.
+   - **Buy more land** when every plot is in use. You start with 10 plots and can buy up to 8 more, each one dearer than the last, with a small monthly upkeep.
+   - Do **groundwork**, grouped by theme:
+     - **Safety and rules:** insurance, waivers and signs, handwash stations, perimeter fencing, a first-aid station.
+     - **Visitor comfort:** restrooms, shade and water, accessible paths, a snack bar.
+     - **Getting here:** two levels of parking, road signs.
+     - **Getting found:** website, online booking, email list.
+     - **Running the business:** zoning permit, commercial kitchen, seasonal-help payroll, a card reader, a walk-in cooler.
    - Pick **one focus**: Promote, Fix and Tidy, or Rest the Family.
    - Set your **price level** (Budget, Fair or Premium) and, once payroll is set up, how many **hired hands** you need.
    - Read the **forecast** (visitors, hours, stamina and money), then press **Open the gate**.
@@ -21,7 +27,8 @@ You run a farm for **3 years, one month per turn (36 turns, about 15 minutes)**.
    - **Stars** (1–5) are your reviews. More stars bring more visitors.
    - **Family Stamina** (0–100) falls when the family works more hours than it has. At zero, the farm closes for a burnout month.
    - **Safety** (0–100). Low safety makes injuries more likely. Insurance limits what an injury costs you.
-4. **At the end** you get a county fair ribbon (Blue, Red, White or Honorable Mention). The report shows your year-3 visitor profit and a table of every attraction's revenue, costs, hours and profit per hour. It also names your best and worst earner per hour and lists every lesson you collected. Each burnout month costs you one ribbon level.
+4. **Every farm year the county fair judges you.** You earn Blue for $60,000 of visitor profit, Red for $40,000, White for $20,000, and Honorable Mention below that. Each burnout that year costs one ribbon level. There is no last month: keep farming as long as you like.
+5. **Open "Farm report and ribbons" any time.** It shows your ribbon for every year and a table of every attraction's revenue, costs, hours and profit per hour. It also names your best and worst earner per hour and lists every lesson you have collected. The game only ends if the bank calls in the loan.
 
 **Tips from Dot, the mentor:** fall is busy for both visitors and harvest, so line up help early. Pumpkin patches and corn mazes have to be planted months ahead. Parking caps how many visitors you can take. Rain hurts outdoor attractions, and online booking halves the loss.
 
