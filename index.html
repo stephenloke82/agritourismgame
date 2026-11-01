@@ -26,7 +26,10 @@
         <li class="meter meter-bar"><span class="meter-label">Safety</span>
           <span class="bar" aria-hidden="true"><span class="bar-fill" id="m-safety-bar"></span></span><span class="meter-value small" id="m-safety">0</span></li>
       </ul>
-      <button class="btn-icon" id="btn-help" type="button" aria-haspopup="dialog">How to play</button>
+      <div class="mast-actions">
+        <button class="btn-icon btn-fs" id="btn-fullscreen" type="button" aria-pressed="false" hidden>Full screen</button>
+        <button class="btn-icon" id="btn-help" type="button" aria-haspopup="dialog">How to play</button>
+      </div>
     </div>
   </header>
 
@@ -42,6 +45,7 @@
           <button class="btn btn-main" id="btn-continue" type="button" hidden>Continue your farm</button>
           <button class="btn btn-gold" id="btn-new" type="button">Start a new farm</button>
           <button class="btn btn-plain" id="btn-howto" type="button">How to play</button>
+          <button class="btn btn-plain" id="btn-fs-title" type="button" hidden>Play full screen</button>
         </div>
         <p class="note" id="storage-note" hidden>This browser won't let the game save. You can still play; progress is lost if you close the page.</p>
       </div>

@@ -24,7 +24,10 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scrollbar-width: thin; scrollbar-color: var(--wood) transparent; }
+html:fullscreen { background: var(--cream); overflow-y: auto; }
+html:-webkit-full-screen { background: var(--cream); overflow-y: auto; }
+::-webkit-scrollbar-button { display: none; }
 body {
   margin: 0;
   font-family: var(--body);
@@ -78,6 +81,8 @@ main:focus { outline: none; }
 .date { margin: 0; font-weight: 700; color: var(--gold-2); }
 .meters { list-style: none; margin: 0 0 0 auto; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 .meter { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.mast-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.btn-fs { background: var(--paper); }
 .meter-label { opacity: 0.85; }
 .meter-value { font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums; }
 .meter-value.small { font-size: 14px; min-width: 2ch; }
@@ -330,7 +335,8 @@ dialog::backdrop { background: rgba(27, 31, 58, 0.6); }
   .brand { font-size: 16px; order: 0; }
   .brand-mark { width: 22px; height: 22px; }
   .date { font-size: 15px; order: 1; }
-  .btn-icon { order: 2; margin-left: auto; padding: 4px 12px; min-height: 40px; font-size: 14px; }
+  .mast-actions { order: 2; margin-left: auto; gap: 6px; }
+  .btn-icon { padding: 4px 12px; min-height: 40px; font-size: 14px; }
   .meters { order: 3; margin-left: 0; width: 100%; display: grid; grid-template-columns: 1.25fr 1.15fr 1fr 1fr; gap: 6px; }
   .meter, .meter-bar { font-size: 11px; gap: 2px 4px; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; max-width: none; }
   .meter .meter-label { width: 100%; line-height: 1.1; }

@@ -769,6 +769,48 @@
   }
 
   // ---------- wiring ----------
+  // ---------- full screen ----------
+  // Lets the game fill the whole screen, which matters most when it is
+  // embedded in a small box on a website. Hidden where the browser can't do it
+  // (for example iPhone Safari, or an embed that doesn't allow full screen).
+  function fullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+  function toggleFullscreen() {
+    try {
+      if (fullscreenElement()) {
+        var exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) exit.call(document);
+      } else {
+        var el = document.documentElement;
+        var req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (req) {
+          var p = req.call(el);
+          if (p && p.catch) p.catch(function () { /* refused: keep playing in the box */ });
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+  function syncFullscreen() {
+    var on = !!fullscreenElement();
+    var btn = $('btn-fullscreen');
+    btn.textContent = on ? 'Exit full screen' : 'Full screen';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('btn-fs-title').hidden = on || !btn.dataset.ok;
+  }
+  function initFullscreen() {
+    var ok = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+    var btn = $('btn-fullscreen');
+    btn.hidden = !ok;
+    if (ok) btn.dataset.ok = '1';
+    if (!ok) return;
+    btn.addEventListener('click', toggleFullscreen);
+    $('btn-fs-title').addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    syncFullscreen();
+  }
+
   function init() {
     buildSetup();
     $('btn-new').addEventListener('click', function () {
@@ -792,6 +834,7 @@
     ['build-dialog', 'help-dialog'].forEach(function (id) {
       $(id).addEventListener('click', function (e) { if (e.target === e.currentTarget) closeDialog(e.currentTarget); });
     });
+    initFullscreen();
     var resizeT = 0;
     window.addEventListener('resize', function () { clearTimeout(resizeT); resizeT = setTimeout(function () { if (s && !animating) drawScene(); }, 120); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && animating && scene) scene.skip(); });

@@ -47,6 +47,8 @@ Progress saves automatically in your browser (`localStorage`). If the browser bl
 
 Inside an embed, some browsers block saving, so progress may not carry over between visits. The game still plays.
 
+**Full screen:** a **Full screen** button sits in the top bar (and **Play full screen** on the title screen), so players can fill their whole screen instead of scrolling inside a small box. It only shows where the browser allows it; iPhone Safari doesn't, so it stays hidden there. Wix's Embed HTML element already allows full screen. On other hosts, add `allow="fullscreen"` to the `<iframe>`. Scrollbars are slim and have no up and down arrow buttons.
+
 `open-the-gate.html` is generated from the source files. After any change, rebuild it with `node tools/build-single.js`.
 
 ### Turn on GitHub Pages
